@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars and edit. Nothing here is secret.
+org_id          = "123456789012"
+billing_account = "ABCDEF-123456-7890AB"
+
+# Optional: put everything under an existing folder (e.g. a sandbox inside a shared org).
+# parent_folder = "345678901234"
+
+project_prefix = "dc"
+primary_region = "us-central1"
+dr_region      = "us-east4"
+
+group_org_admins     = "gcp-organization-admins@example.com"
+group_billing_admins = "gcp-billing-admins@example.com"
+
+github_owner = "your-github-org"
+github_repo  = "gcp-datacenter"
+
+# Label values must be lowercase (GCP rule). The spec example "TI-001" must be written "ti-001".
+labels = {
+  owner       = "platform-team"
+  cost_center = "ti-001"
+}
