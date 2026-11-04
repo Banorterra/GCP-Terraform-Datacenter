@@ -1,0 +1,32 @@
+# Terraform working directories and local state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+tfplan*
+plan.json
+
+# Variable files that hold real values. Commit only *.example files and
+# terraform.auto.tfvars (non-secret, per root). Never put secrets in any of them.
+terraform.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Credentials
+*.json.key
+*-key.json
+credentials*.json
+.env
+.env.*
+
+# CLI config and editor files
+.terraformrc
+terraform.rc
+.idea/
+.vscode/
+.DS_Store

@@ -4,8 +4,9 @@ Terraform repository for the GCP "datacenter" (landing zone) described in the pr
 It adapts Google's [terraform-example-foundation](https://github.com/terraform-google-modules/terraform-example-foundation)
 to the spec's stages, GitHub Actions pipeline and acceptance criteria.
 
-> Status: skeleton. Stage 0 and the pipeline are written; stages 1-5 and the modules are scaffolding with
-> READMEs. **Nothing here has been run against a real organization yet** (see "Not verified").
+> Status: skeleton. Stage 0 is written; stages 1-5 and the modules are scaffolding with READMEs.
+> The GitHub Actions workflows under `.github/` are **not in the repository yet** (the pipeline still has to be written).
+> **Nothing here has been run against a real organization yet** (see "Not verified").
 
 ## Layout
 

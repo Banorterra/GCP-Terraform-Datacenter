@@ -68,9 +68,9 @@ variable "github_owner" {
 }
 
 variable "github_repo" {
-  description = "Repository that holds this code (the spec uses a single repo for all stages)."
+  description = "Repository that holds this code (the spec uses a single repo for all stages). Must match the name on GitHub exactly: Workload Identity trusts only this owner/repo."
   type        = string
-  default     = "gcp-datacenter"
+  default     = "GCP-Terraform-Datacenter"
 }
 
 variable "labels" {

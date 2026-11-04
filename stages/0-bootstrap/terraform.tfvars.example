@@ -12,8 +12,8 @@ dr_region      = "us-east4"
 group_org_admins     = "gcp-organization-admins@example.com"
 group_billing_admins = "gcp-billing-admins@example.com"
 
-github_owner = "your-github-org"
-github_repo  = "gcp-datacenter"
+github_owner = "Banorterra"
+github_repo  = "GCP-Terraform-Datacenter"
 
 # Label values must be lowercase (GCP rule). The spec example "TI-001" must be written "ti-001".
 labels = {
