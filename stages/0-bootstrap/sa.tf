@@ -70,7 +70,7 @@ locals {
     bootstrap = ["roles/resourcemanager.folderAdmin"]
     org       = ["roles/resourcemanager.folderAdmin"]
     security  = ["roles/resourcemanager.folderViewer"]
-    networks  = [
+    networks = [
       "roles/resourcemanager.folderViewer",
       "roles/compute.networkAdmin",
       "roles/compute.securityAdmin",
