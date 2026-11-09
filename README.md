@@ -5,8 +5,7 @@ It adapts Google's [terraform-example-foundation](https://github.com/terraform-g
 to the spec's stages, GitHub Actions pipeline and acceptance criteria.
 
 > Status: skeleton. Stage 0 is written; stages 1-5 and the modules are scaffolding with READMEs.
-> The GitHub Actions workflows under `.github/` are **not in the repository yet** (the pipeline still has to be written).
-> **Nothing here has been run against a real organization yet** (see "Not verified").
+> Stage 0 is applied. The GitHub Actions workflows (`.github/workflows/pr.yml` and `apply.yml`) are written but not yet proven on a real stage.
 
 ## Layout
 
@@ -21,7 +20,7 @@ stages/4-projects/      service projects per application            envs/{dev,qa
 stages/5-workloads/     GKE, MIG, Cloud SQL, storage, LB, backup    envs/{dev,qa,prod}
 policies/               Conftest (OPA) rules run on every plan
 scripts/                changed-roots.sh (which roots a PR touches), sync-boilerplate.sh
-.github/                reusable plan/apply/drift workflow, PR checks, promotion
+.github/workflows/      pr.yml (fmt, validate, plan + policy check, plan comment), apply.yml (apply after merge)
 docs/adr/               architecture decision records
 ```
 
@@ -55,7 +54,8 @@ docs/adr/               architecture decision records
    Security Center admin. Enable `cloudresourcemanager`, `cloudbilling`, `iam`, `cloudkms` and `servicenetworking` on the project your credentials use.
 2. `cd stages/0-bootstrap`, copy `terraform.tfvars.example` to `terraform.tfvars`, then `terraform init`, `plan`, `apply` with local state.
 3. Rename `backend.tf.example` to `backend.tf` and run `terraform init -migrate-state -backend-config="bucket=$(terraform output -raw state_bucket)"`.
-4. In GitHub: create repository variables from `terraform output github_repository_variables` (plus `CONFTEST_VERSION`);
+4. In GitHub: create repository variables from `terraform output github_repository_variables`, plus `ORG_ID` and `BILLING_ACCOUNT`
+   (optional: `CONFTEST_VERSION`, default 0.56.0);
    create environments `shared`, `dev`, `qa`, `prod` (two required reviewers on `prod`); protect `main`; add CODEOWNERS per stage.
    Optional variables: `INFRACOST_ENABLED` (+ secret `INFRACOST_API_KEY`), `DRIFT_ENABLED`.
 5. Edit `stages/_shared/*` if needed, then run `scripts/sync-boilerplate.sh`. Open the first PR and watch `pr.yml`.

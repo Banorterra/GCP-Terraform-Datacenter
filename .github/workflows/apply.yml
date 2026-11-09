@@ -1,0 +1,97 @@
+# Apply after merge. Runs on every push to main (that is, every merged PR).
+# For each stage root the merge touched, it plans again and applies, one root at a time in stage order
+# (1-org before 2-security before 3-networks...).
+#
+# Approvals live in GitHub, not here: each job runs in the GitHub environment of its root
+# (shared for 1-org and 2-security, dev/qa/prod for the per-environment stages). Configure them in
+# Settings > Environments: no reviewers on dev, reviewers on shared/qa, two reviewers on prod (spec).
+# A job waits until the environment's reviewers approve it.
+name: apply
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Never run two applies at the same time. A newer push waits; it is not cancelled.
+concurrency:
+  group: apply-main
+  cancel-in-progress: false
+
+jobs:
+  roots:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.roots.outputs.matrix }}
+      any: ${{ steps.roots.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: roots
+        run: |
+          matrix="$(bash scripts/changed-roots.sh "${{ github.event.before }}")"
+          echo "Roots to apply: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+  apply:
+    needs: roots
+    if: needs.roots.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.gh_env }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      max-parallel: 1   # roots come sorted by stage, so earlier stages apply first
+      matrix: ${{ fromJSON(needs.roots.outputs.matrix) }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_org_id: ${{ vars.ORG_ID }}
+      TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
+      TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform plan
+        run: |
+          terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan
+          terraform show -json tfplan > plan.json
+
+      - name: Policy check (conftest)
+        run: |
+          version="${{ vars.CONFTEST_VERSION || '0.56.0' }}"
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/policies" --no-color
+
+      - name: terraform apply
+        run: terraform apply -input=false -no-color -lock-timeout=5m tfplan
