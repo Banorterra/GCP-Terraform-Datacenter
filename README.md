@@ -20,7 +20,7 @@ stages/4-projects/      service projects per application            envs/{dev,qa
 stages/5-workloads/     GKE, MIG, Cloud SQL, storage, LB, backup    envs/{dev,qa,prod}
 policies/               Conftest (OPA) rules run on every plan
 scripts/                changed-roots.sh (which roots a PR touches), sync-boilerplate.sh
-.github/workflows/      pr.yml (fmt, validate, plan + policy check, plan comment), apply.yml (apply after merge)
+.github/workflows/      pr.yml (fmt, validate, plan + policy check, plan comment), apply.yml (after merge: plan every root, approve per environment, apply the saved plan)
 docs/adr/               architecture decision records
 ```
 
@@ -56,7 +56,7 @@ docs/adr/               architecture decision records
 3. Rename `backend.tf.example` to `backend.tf` and run `terraform init -migrate-state -backend-config="bucket=$(terraform output -raw state_bucket)"`.
 4. In GitHub: create repository variables from `terraform output github_repository_variables`, plus `ORG_ID` and `BILLING_ACCOUNT`
    (optional: `CONFTEST_VERSION`, default 0.56.0);
-   create environments `shared`, `dev`, `qa`, `prod` (two required reviewers on `prod`); protect `main`; add CODEOWNERS per stage.
+   create environments `shared`, `dev`, `qa`, `prod` (required reviewers with "prevent self-review" on `shared` and `prod`, deployment branch `main`); protect `main`; add CODEOWNERS per stage.
    Optional variables: `INFRACOST_ENABLED` (+ secret `INFRACOST_API_KEY`), `DRIFT_ENABLED`.
 5. Edit `stages/_shared/*` if needed, then run `scripts/sync-boilerplate.sh`. Open the first PR and watch `pr.yml`.
 6. For each stage root: `terraform init -backend-config="bucket=<state bucket>"`.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prints a GitHub Actions matrix (JSON) with the Terraform roots to plan.
 #   changed-roots.sh [BASE_REF]   roots touched by the diff BASE_REF...HEAD
-#   changed-roots.sh --all        every root except 0-bootstrap (used by the drift job)
+#   changed-roots.sh --all        every root except 0-bootstrap (used by apply.yml)
 # A change under modules/, stages/_shared/, .github/workflows/ or .terraform-version affects every root.
 # 0-bootstrap is never returned: it is applied once, by hand.
 set -euo pipefail
@@ -15,7 +15,8 @@ if [[ "${1:-}" == "--all" ]]; then
   mapfile -t roots < <(all_roots)
 else
   base="${1:-origin/main}"
-  changed="$(git diff --name-only "${base}...HEAD" || true)"
+  # No "|| true": if the diff fails (missing base), fail loudly instead of planning nothing.
+  changed="$(git diff --name-only "${base}...HEAD")"
   if grep -qE '^(modules/|stages/_shared/|\.terraform-version|\.github/workflows/)' <<<"$changed"; then
     mapfile -t roots < <(all_roots)
   else
