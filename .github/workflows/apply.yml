@@ -1,0 +1,218 @@
+# Apply. Runs on every push to main (every merged PR) and by hand (Actions > apply > Run workflow) to retry.
+#
+#   1. plan:    plans EVERY stage root, in parallel, as that stage's service account. Nothing is skipped because
+#               of what the last merge touched, so a root whose earlier apply failed is picked up again.
+#               Each plan is checked with conftest and shown in the run summary. Roots with changes save their
+#               plan file in the state bucket, under the stage's own prefix (private, unlike workflow artifacts
+#               in a public repository).
+#   2. collect: builds the list of roots that have changes. If any plan failed, nothing is applied.
+#   3. apply:   one job per root with changes, one at a time in stage order. Each job runs in the root's GitHub
+#               environment, so it waits for that environment's reviewers. Reviewers approve after the plan
+#               exists: open the run summary, read the plan of that root, then approve. The job applies exactly
+#               that saved plan; Terraform refuses it if the state changed since it was made.
+#
+# Keep one stage per PR when possible: plans run in parallel, so a later stage's plan does not see outputs that an
+# earlier stage applies in the same run. Plan again (Run workflow) after applying an earlier stage.
+name: apply
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two applies at the same time. A newer push waits; it is not cancelled.
+concurrency:
+  group: apply-main
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_org_id: ${{ vars.ORG_ID }}
+  TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
+  TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+
+jobs:
+  roots:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.roots.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: roots
+        run: |
+          matrix="$(bash scripts/changed-roots.sh --all)"
+          echo "Roots to plan: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  plan:
+    needs: roots
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.roots.outputs.matrix) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan > plan.txt 2>&1
+          code=$?
+          set -e
+          cat plan.txt
+          # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes
+          if [[ $code -eq 1 ]]; then exit 1; fi
+          echo "changes=$([[ $code -eq 2 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          terraform show -json tfplan > plan.json
+          echo "id=$(tr '/' '_' <<<"${{ matrix.dir }}")" >> "$GITHUB_OUTPUT"
+
+      - name: Policy check (conftest)
+        run: |
+          version="${{ vars.CONFTEST_VERSION || '0.56.0' }}"
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/policies" --no-color
+
+      - name: Plan to run summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          {
+            echo "### \`${{ matrix.dir }}\`: $([[ '${{ steps.plan.outputs.changes }}' == 'true' ]] && echo 'CHANGES, waits for approval' || echo 'no changes')"
+            if [[ '${{ steps.plan.outputs.changes }}' == 'true' || '${{ steps.plan.outcome }}' == 'failure' ]]; then
+              echo '<details><summary>Plan</summary>'; echo; echo '```'
+              tail -c 60000 plan.txt
+              echo '```'; echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save plan for the apply job
+        if: steps.plan.outputs.changes == 'true'
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+        run: |
+          gcloud storage cp tfplan \
+            "gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/${{ steps.plan.outputs.id }}.tfplan"
+          jq -cn --argjson m "$MATRIX" --arg id '${{ steps.plan.outputs.id }}' '$m + {id: $id}' \
+            > "$RUNNER_TEMP/changes.json"
+
+      - name: Mark root as changed
+        if: steps.plan.outputs.changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: changes-${{ steps.plan.outputs.id }}
+          path: ${{ runner.temp }}/changes.json
+          retention-days: 1
+
+  collect:
+    needs: plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect.outputs.matrix }}
+      any: ${{ steps.collect.outputs.any }}
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # no root with changes means no artifacts
+        with:
+          pattern: changes-*
+          path: changes
+
+      - id: collect
+        run: |
+          mkdir -p changes
+          matrix="$(find changes -name changes.json -exec cat {} + 2>/dev/null | jq -cs '{include: sort_by(.dir)}')"
+          echo "Roots to apply: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+          stages="$(jq '[.include[].stage] | unique | length' <<<"$matrix")"
+          if [[ "$stages" -gt 1 ]]; then
+            {
+              echo "### Warning: more than one stage has changes"
+              echo "Later stages were planned before earlier ones apply. After this run, use Run workflow to plan again."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  apply:
+    needs: collect
+    if: needs.collect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.gh_env }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true
+      max-parallel: 1   # roots come sorted by stage, so earlier stages apply first
+      matrix: ${{ fromJSON(needs.collect.outputs.matrix) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+      PLAN_OBJECT: gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/${{ matrix.id }}.tfplan
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Fetch the approved plan
+        run: gcloud storage cp "$PLAN_OBJECT" tfplan
+
+      - name: terraform apply (the saved plan, nothing else)
+        run: terraform apply -input=false -no-color -lock-timeout=5m tfplan
+
+      - name: Delete the saved plan
+        if: always()
+        run: gcloud storage rm "$PLAN_OBJECT" || true
