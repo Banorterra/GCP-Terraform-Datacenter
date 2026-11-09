@@ -5,7 +5,7 @@ billing_account = "ABCDEF-123456-7890AB"
 # Optional: put everything under an existing folder (e.g. a sandbox inside a shared org).
 # parent_folder = "345678901234"
 
-project_prefix = "dc"
+project_prefix = "bnt"
 primary_region = "northamerica-south1"
 dr_region      = "us-south1"
 
