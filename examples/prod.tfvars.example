@@ -3,15 +3,22 @@
 org_id          = "123456789012"
 billing_account = "ABCDEF-123456-7890AB"
 environment     = "prod"
-primary_region  = "us-central1"
-dr_region       = "us-east4"
+primary_region  = "northamerica-south1" # Queretaro (ADR 0005)
+dr_region       = "us-south1"           # Dallas (ADR 0005)
 
+# IP plan from the network diagram (Phase 3, diagram 2):
+#   hub  10.0.0.0/22 | prod 10.10.0.0/16 | dev 10.20.0.0/16 | qa 10.30.0.0/16
+# Each environment has one /20 per service project in the primary region and, in prod only,
+# a /17 reserved for the DR replica in the DR region.
 subnet_cidrs = {
-  app = "10.30.0.0/20"
+  canales = "10.10.0.0/20"
+  core    = "10.10.16.0/20"
+  datos   = "10.10.32.0/20"
+  dr      = "10.10.128.0/17"
 }
 
-# Must not overlap any subnet above (client delivers the IP plan before Sprint 3).
-onprem_cidrs = ["192.168.0.0/16"]
+# Banorte on-premises range. Must not overlap any subnet above or the hub.
+onprem_cidrs = ["172.16.0.0/16"]
 
 gke_node_pools = {
   general = {

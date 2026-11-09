@@ -6,8 +6,8 @@ billing_account = "ABCDEF-123456-7890AB"
 # parent_folder = "345678901234"
 
 project_prefix = "dc"
-primary_region = "us-central1"
-dr_region      = "us-east4"
+primary_region = "northamerica-south1"
+dr_region      = "us-south1"
 
 group_org_admins     = "gcp-organization-admins@example.com"
 group_billing_admins = "gcp-billing-admins@example.com"

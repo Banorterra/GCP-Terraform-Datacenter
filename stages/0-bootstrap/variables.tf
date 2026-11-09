@@ -36,15 +36,15 @@ variable "project_prefix" {
 }
 
 variable "primary_region" {
-  description = "Primary region (spec: us-central1). Hosts the state bucket and its KMS key."
+  description = "Primary region (ADR 0005: northamerica-south1, Queretaro). Hosts the state bucket and its KMS key."
   type        = string
-  default     = "us-central1"
+  default     = "northamerica-south1"
 }
 
 variable "dr_region" {
-  description = "Disaster-recovery region (spec: us-east4). Not used by stage 0 itself; kept here so every stage shares the same names."
+  description = "Disaster-recovery region (ADR 0005: us-south1, Dallas). Not used by stage 0 itself; kept here so every stage shares the same names."
   type        = string
-  default     = "us-east4"
+  default     = "us-south1"
 
   validation {
     condition     = var.dr_region != var.primary_region

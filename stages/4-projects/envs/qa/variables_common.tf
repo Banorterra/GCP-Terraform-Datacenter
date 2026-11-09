@@ -24,13 +24,13 @@ variable "environment" {
 variable "primary_region" {
   description = "Primary region."
   type        = string
-  default     = "us-central1"
+  default     = "northamerica-south1"
 }
 
 variable "dr_region" {
   description = "Disaster-recovery region."
   type        = string
-  default     = "us-east4"
+  default     = "us-south1"
 }
 
 variable "state_bucket" {
