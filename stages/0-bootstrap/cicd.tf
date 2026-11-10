@@ -38,11 +38,31 @@ module "gh_oidc" {
   # Only workflows from this exact repository can obtain credentials.
   attribute_condition = "assertion.repository=='${var.github_owner}/${var.github_repo}'"
 
-  # Each stage service account can be impersonated by this repository only.
-  sa_mapping = {
-    for k, sa in google_service_account.stage : k => {
-      sa_name   = sa.name
-      attribute = "attribute.repository/${var.github_owner}/${var.github_repo}"
-    }
+  # Default mapping plus the git ref, so bindings can tell main apart from pull requests.
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.actor"      = "assertion.actor"
+    "attribute.aud"        = "assertion.aud"
+    "attribute.repository" = "assertion.repository"
+    "attribute.ref"        = "assertion.ref"
   }
+
+  # Stage SAs (they can change things): only jobs running on refs/heads/main. Commits reach main only
+  # through a reviewed PR (ruleset), and environments only deploy from main. A PR job (ref
+  # refs/pull/N/merge) or a manual run on another branch cannot get them.
+  # Plan SAs (read-only): any workflow of this repository, including PR checks.
+  sa_mapping = merge(
+    {
+      for k, sa in google_service_account.stage : k => {
+        sa_name   = sa.name
+        attribute = "attribute.ref/refs/heads/main"
+      }
+    },
+    {
+      for k, sa in google_service_account.plan : "plan-${k}" => {
+        sa_name   = sa.name
+        attribute = "attribute.repository/${var.github_owner}/${var.github_repo}"
+      }
+    },
+  )
 }

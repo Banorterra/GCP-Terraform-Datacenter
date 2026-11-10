@@ -71,7 +71,7 @@ Only syntax of the `.tf`, `.yml` and `.sh` files was parsed, and `scripts/change
 - Written from memory, check against provider docs: the IAM condition for per-prefix state access (including the list-request clause), `default_labels` in the provider block, the `roles/billing.costsManager` role.
 - The Rego policies were never executed. Test them with `conftest verify` or against a real plan JSON before relying on the "blocks a public bucket" acceptance test.
 - `.terraform-version` (1.9.8) is a placeholder: check current releases first. GitHub Actions are pinned by major tag, not commit SHA.
-- Plan jobs on PRs use the same service account as apply jobs. Only this repository can use them, but a read-only plan account would be safer.
+- PR plans use read-only plan service accounts (`TF_PLAN_SA_*`, `stages/0-bootstrap/plan_sa.tf`). The stage service accounts that can change things only work from jobs on `main`.
 - Stage role sets are a starting point copied from the example; tighten them in the sandbox.
 
 ## Schedule note
