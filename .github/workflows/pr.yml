@@ -1,0 +1,157 @@
+# Pull request checks. Nothing here changes infrastructure.
+#   1. checks: terraform fmt and validate on every root (no GCP credentials needed).
+#   2. roots:  which stage roots the PR touches (scripts/changed-roots.sh). 0-bootstrap is never included.
+#   3. plan:   for each touched root, log in to GCP with Workload Identity Federation as that stage's
+#              service account, run terraform plan, check it with the Rego policies and post it as a PR comment.
+#
+# Repository variables used (Settings > Secrets and variables > Actions > Variables):
+#   WIF_PROVIDER, TF_STATE_BUCKET, TF_SA_ORG, TF_SA_SECURITY, TF_SA_NETWORKS, TF_SA_PROJECTS, TF_SA_WORKLOADS,
+#   ORG_ID, BILLING_ACCOUNT, and optionally CONFTEST_VERSION.
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform validate (every root)
+        run: |
+          status=0
+          for dir in $(find stages -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \; | sort); do
+            echo "::group::${dir}"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+  roots:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.roots.outputs.matrix }}
+      any: ${{ steps.roots.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: roots
+        run: |
+          matrix="$(bash scripts/changed-roots.sh "origin/${{ github.base_ref }}")"
+          echo "Roots to plan: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+  plan:
+    needs: [checks, roots]
+    if: needs.roots.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write       # lets the job request the GitHub OIDC token that WIF exchanges
+      pull-requests: write  # lets the job post the plan as a comment
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.roots.outputs.matrix) }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_org_id: ${{ vars.ORG_ID }}
+      TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
+      TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+          terraform show -json tfplan > plan.json
+
+      - name: Policy check (conftest)
+        run: |
+          version="${{ vars.CONFTEST_VERSION || '0.56.0' }}"
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/policies" --no-color | tee conftest.txt
+
+      - name: Post plan as PR comment
+        if: always() && steps.plan.outcome != 'skipped'
+        uses: actions/github-script@v7
+        env:
+          ROOT: ${{ matrix.dir }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            const dir = process.env.ROOT;
+            const read = (f) => { try { return fs.readFileSync(`${dir}/${f}`, 'utf8'); } catch { return ''; } };
+            const max = 60000;
+            let plan = read('plan.txt');
+            if (plan.length > max) plan = '...(truncated, see the job log)\n' + plan.slice(-max);
+            const policy = read('conftest.txt');
+            const marker = `<!-- terraform-plan:${dir} -->`;
+            const body = [
+              marker,
+              `### Terraform plan: \`${dir}\` (${process.env.PLAN_OUTCOME})`,
+              '<details><summary>Plan</summary>', '', '```', plan || '(no output)', '```', '</details>',
+              policy ? ['', '**Policies (conftest)**', '```', policy, '```'].join('\n') : '',
+              '', `[Job log](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number, per_page: 100,
+            });
+            const old = comments.find(c => c.body && c.body.startsWith(marker));
+            if (old) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: old.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
