@@ -25,4 +25,4 @@ Meets the spec flow (PR checks, plan comment, dev auto-apply, protected prod) wi
 
 ## Consequences
 - Branch protection, CODEOWNERS and the `shared`, `dev`, `qa`, `prod` environments (two reviewers on prod) are set up in GitHub.
-- Plan jobs currently use the same service account as apply jobs; consider read-only plan accounts later.
+- PR plans use read-only plan service accounts; the stage service accounts are bound in Workload Identity to `refs/heads/main` only.

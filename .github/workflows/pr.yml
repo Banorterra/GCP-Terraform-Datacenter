@@ -2,10 +2,11 @@
 #   1. checks: terraform fmt and validate on every root (no GCP credentials needed).
 #   2. roots:  which stage roots the PR touches (scripts/changed-roots.sh). 0-bootstrap is never included.
 #   3. plan:   for each touched root, log in to GCP with Workload Identity Federation as that stage's
-#              service account, run terraform plan, check it with the Rego policies and post it as a PR comment.
+#              READ-ONLY plan service account, run terraform plan, check it with the Rego policies and post it as a PR comment.
 #
 # Repository variables used (Settings > Secrets and variables > Actions > Variables):
-#   WIF_PROVIDER, TF_STATE_BUCKET, TF_SA_ORG, TF_SA_SECURITY, TF_SA_NETWORKS, TF_SA_PROJECTS, TF_SA_WORKLOADS,
+#   WIF_PROVIDER, TF_STATE_BUCKET, TF_PLAN_SA_ORG, TF_PLAN_SA_SECURITY, TF_PLAN_SA_NETWORKS, TF_PLAN_SA_PROJECTS,
+#   TF_PLAN_SA_WORKLOADS,
 #   ORG_ID, BILLING_ACCOUNT, and optionally CONFTEST_VERSION.
 name: pr
 
@@ -90,11 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GCP as the stage service account
+      # Read-only identity: PR code is not reviewed yet. The stage SAs only work from main.
+      - name: Log in to GCP as the stage's read-only plan service account
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
-          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+          service_account: ${{ vars[format('TF_PLAN_SA_{0}', matrix.sa_key)] }}
 
       - name: Read Terraform version
         id: tfver
@@ -113,7 +115,7 @@ jobs:
         id: plan
         run: |
           set -o pipefail
-          terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan | tee plan.txt
+          terraform plan -input=false -no-color -lock=false -out=tfplan | tee plan.txt  # read-only SA cannot write the lock
           terraform show -json tfplan > plan.json
 
       - name: Policy check (conftest)

@@ -30,6 +30,7 @@ output "github_repository_variables" {
       WIF_PROVIDER    = module.gh_oidc.provider_name
       TF_STATE_BUCKET = module.seed_bootstrap.gcs_bucket_tfstate
     },
-    { for k, sa in google_service_account.stage : "TF_SA_${upper(k)}" => sa.email }
+    { for k, sa in google_service_account.stage : "TF_SA_${upper(k)}" => sa.email },
+    { for k, sa in google_service_account.plan : "TF_PLAN_SA_${upper(k)}" => sa.email }
   )
 }
