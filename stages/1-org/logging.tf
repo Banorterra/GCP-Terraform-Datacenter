@@ -1,0 +1,40 @@
+# Organization-level audit log sink to a Cloud Storage bucket in the logging project.
+# The bucket has a locked retention policy (spec: audit logs must be tamper-proof for N days).
+# Once locked, the retention policy CANNOT be shortened or removed, even by project owners.
+
+resource "google_storage_bucket" "audit_logs" {
+  project                     = module.common_projects["logging"].project_id
+  name                        = "${var.project_prefix}-c-audit-logs-${var.org_id}"
+  location                    = var.primary_region
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  retention_policy {
+    retention_period = var.audit_log_retention_days * 24 * 3600
+    is_locked        = var.audit_log_retention_locked
+  }
+
+  labels = merge(local.base_labels, { app = "audit-logs" })
+}
+
+# Aggregated sink at the organization: captures all admin and data-access logs for every project
+# under the org and routes them to the bucket above.
+resource "google_logging_organization_sink" "audit" {
+  name             = "${var.project_prefix}-org-audit-sink"
+  org_id           = var.org_id
+  destination      = "storage.googleapis.com/${google_storage_bucket.audit_logs.name}"
+  include_children = true
+  filter           = var.audit_log_filter
+}
+
+# The sink's writer identity needs object creation on the bucket.
+resource "google_storage_bucket_iam_member" "audit_sink_writer" {
+  bucket = google_storage_bucket.audit_logs.name
+  role   = "roles/storage.objectCreator"
+  member = google_logging_organization_sink.audit.writer_identity
+}
