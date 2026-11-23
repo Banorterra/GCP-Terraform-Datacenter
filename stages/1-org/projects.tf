@@ -28,11 +28,15 @@ module "common_projects" {
     "storage.googleapis.com",
   ]
 
+  # No per-project service account: nothing uses it and the spec doesn't ask for one.
+  create_project_sa = false
+
   deletion_policy = var.project_deletion_policy
 }
 
-# One network host project per environment. Stage 3 enables Shared VPC and the networking APIs
-# on these; here we just create the project in the right folder with the right labels.
+# One network host project per environment: the "spoke" network project the spec asks for in each
+# env folder ("un proyecto de red spoke"), which hosts that env's Shared VPC (diagram 2). Stage 3 enables
+# Shared VPC and the networking APIs on these; here we just create the project in the right folder.
 module "net_host_projects" {
   for_each = local.env_folders
 
@@ -58,6 +62,9 @@ module "net_host_projects" {
     "serviceusage.googleapis.com",
     "compute.googleapis.com",
   ]
+
+  # No per-project service account: nothing uses it and the spec doesn't ask for one.
+  create_project_sa = false
 
   deletion_policy = var.project_deletion_policy
 }

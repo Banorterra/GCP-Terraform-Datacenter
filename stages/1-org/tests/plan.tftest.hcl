@@ -31,7 +31,6 @@ variables {
   }
   folder_deletion_protection = false
   project_deletion_policy    = "DELETE"
-  audit_log_retention_locked = false
 }
 
 run "folders_and_projects" {
@@ -85,6 +84,44 @@ run "org_policies" {
     ])
     error_message = "Resource Locations policy must allow only primary and DR regions."
   }
+
+  assert {
+    condition     = contains(keys(google_org_policy_policy.boolean_enforce), "compute.requireShieldedVm")
+    error_message = "Org policy must require Shielded VMs."
+  }
+
+  assert {
+    condition     = length(google_org_policy_policy.allowed_policy_member_domains.spec[0].rules[0].values[0].allowed_values) == 2
+    error_message = "Domain restricted sharing must allow only our customer ID and our organization principal set."
+  }
+}
+
+run "budgets" {
+  command = plan
+
+  variables {
+    alert_emails = ["equipo@example.com"]
+  }
+
+  assert {
+    condition     = google_billing_budget.total.budget_filter[0].credit_types_treatment == "EXCLUDE_ALL_CREDITS"
+    error_message = "The total budget must measure gross cost, or free-trial credits hide every alert."
+  }
+
+  assert {
+    condition     = length(google_billing_budget.project) == 7
+    error_message = "Every project created by stage 1 must have its own budget."
+  }
+
+  assert {
+    condition     = length(google_monitoring_notification_channel.email) == 1 && length(google_essential_contacts_contact.team) == 1
+    error_message = "Each alert email must get a notification channel and an essential contact."
+  }
+
+  assert {
+    condition     = contains(google_org_policy_policy.essential_contacts_domains.spec[0].rules[0].values[0].allowed_values, "@example.com")
+    error_message = "Essential contact domains must include the alert emails' domains."
+  }
 }
 
 run "sinks_and_notifications" {
@@ -96,8 +133,13 @@ run "sinks_and_notifications" {
   }
 
   assert {
-    condition     = google_storage_bucket.audit_logs.retention_policy[0].retention_period >= 30 * 24 * 3600
-    error_message = "Audit bucket must retain at least 30 days."
+    condition     = google_storage_bucket.audit_logs.retention_policy[0].retention_period >= 24 * 3600
+    error_message = "Audit bucket must retain at least 1 day."
+  }
+
+  assert {
+    condition     = google_storage_bucket.audit_logs.retention_policy[0].is_locked == true
+    error_message = "Audit bucket retention must be locked by default (spec: locked retention)."
   }
 
   assert {

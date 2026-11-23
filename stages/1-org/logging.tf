@@ -1,6 +1,8 @@
 # Organization-level audit log sink to a Cloud Storage bucket in the logging project.
-# The bucket has a locked retention policy (spec: audit logs must be tamper-proof for N days).
-# Once locked, the retention policy CANNOT be shortened or removed, even by project owners.
+# The bucket has a locked retention policy (spec: "retención bloqueada"). Once locked, the retention
+# period CANNOT be shortened or removed, even by project owners, and GCS puts a lien on the logging
+# project until the bucket is gone. The sandbox uses a 1-day period (var.audit_log_retention_days),
+# so terraform destroy can empty and delete the bucket once its newest object is a day old.
 
 resource "google_storage_bucket" "audit_logs" {
   project                     = module.common_projects["logging"].project_id
@@ -9,6 +11,7 @@ resource "google_storage_bucket" "audit_logs" {
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
+  force_destroy               = true # sandbox: destroy deletes the objects (only those past retention)
 
   versioning {
     enabled = true

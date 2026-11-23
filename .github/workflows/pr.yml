@@ -8,6 +8,8 @@
 #   WIF_PROVIDER, TF_STATE_BUCKET, TF_PLAN_SA_ORG, TF_PLAN_SA_SECURITY, TF_PLAN_SA_NETWORKS, TF_PLAN_SA_PROJECTS,
 #   TF_PLAN_SA_WORKLOADS,
 #   ORG_ID, BILLING_ACCOUNT, and optionally CONFTEST_VERSION.
+# Repository secret (Settings > Secrets and variables > Actions > Secrets): ALERT_EMAILS, a JSON list such as
+#   ["someone@example.com"], used by stage 1 for budget alerts and Essential Contacts.
 name: pr
 
 on:
@@ -85,6 +87,8 @@ jobs:
       TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
       TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
       TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+      # JSON list of emails for alerts (stage 1). A secret, so it never shows in logs; [] when not set.
+      TF_VAR_alert_emails: ${{ secrets.ALERT_EMAILS || '[]' }}
     defaults:
       run:
         working-directory: ${{ matrix.dir }}
@@ -120,6 +124,7 @@ jobs:
 
       - name: Policy check (conftest)
         run: |
+          set -o pipefail  # without it the step takes tee's exit code and passes even when conftest fails
           version="${{ vars.CONFTEST_VERSION || '0.56.0' }}"
           curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_x86_64.tar.gz" \
             | sudo tar -xz -C /usr/local/bin conftest
