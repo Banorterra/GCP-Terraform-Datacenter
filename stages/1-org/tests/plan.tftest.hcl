@@ -107,6 +107,9 @@ run "budgets" {
 
   variables {
     alert_emails = ["equipo@example.com"]
+    # Every project on the main account, whatever terraform.auto.tfvars assigns.
+    extra_billing_accounts = {}
+    project_billing        = {}
   }
 
   assert {
