@@ -16,7 +16,7 @@ before pinning, and record the choice in an ADR.
 | `compute-mig` | terraform-google-modules/vm (MIG submodule) |
 | `cloud-sql` | terraform-google-modules/sql-db |
 | `storage` | terraform-google-modules/cloud-storage |
-| `kms` | terraform-google-modules/kms |
+| `kms` | **Hecho** (`modules/kms`, propio: key ring + llaves + IAM; usado por la etapa 2) |
 | `observability` | Example foundation log sinks + monitoring resources |
 | `backup-dr` | Probably custom: check provider support for Backup and DR first |
 | `vpc-sc` | Example foundation VPC-SC code, trimmed to the spec's perimeter |
