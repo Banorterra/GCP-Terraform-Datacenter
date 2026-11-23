@@ -20,6 +20,11 @@ output "net_host_project_ids" {
   value       = { for k, p in module.net_host_projects : k => p.project_id }
 }
 
+output "net_host_project_numbers" {
+  description = "Network host project number per environment. Stage 2 puts the prod one in the VPC-SC perimeter (perimeters take project numbers)."
+  value       = { for k, p in module.net_host_projects : k => p.project_number }
+}
+
 output "audit_log_bucket" {
   description = "GCS bucket that receives the organization-level audit log sink."
   value       = google_storage_bucket.audit_logs.name

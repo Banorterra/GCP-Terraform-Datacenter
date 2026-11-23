@@ -25,6 +25,7 @@ organización; el sink de auditoría; las notificaciones de SCC y los presupuest
 | Presupuestos | Uno por cuenta de facturación (su crédito, en su moneda) + uno por proyecto con billing, con `EXCLUDE_ALL_CREDITS` | Con `INCLUDE_ALL_CREDITS` el crédito de prueba deja el costo en 0 y nunca hay alertas |
 | Avisos | Correos de `ALERT_EMAILS` (secret de GitHub) como canales de Monitoring de los presupuestos | Los buzones `@banorterra.com` no se leen. Es secret para que los correos no salgan en el repo público ni en los planes. No usamos Essential Contacts: la org trae la restricción administrada `essentialcontacts.managed.allowedContactDomains`, que solo deja contactos `@banorterra.com` |
 | Políticas que ya existían | `imports.tf` adopta 4 políticas que Google crea en orgs nuevas (secure by default) | Crearlas daba 409 "already exists"; importarlas deja una sola fuente de verdad |
+| Acceso de etapas siguientes | `stage_access.tf`: `cloudkms.admin` y `secretmanager.admin` a `sa-terraform-security` solo en el proyecto `security`, y sus APIs encendidas en `projects.tf` (solo si el proyecto tiene billing) | La etapa 0 no podía dar roles en proyectos que aún no existían. Necesita `pipeline_sa_project_id` (proyecto seed) |
 
 ## Variables
 

@@ -130,3 +130,13 @@ variable "alert_emails" {
     error_message = "Every alert_emails entry must be an email address."
   }
 }
+
+variable "pipeline_sa_project_id" {
+  description = "Project ID of stage 0's seed project, where the pipeline service accounts live (sa-terraform-<stage>@<this>.iam.gserviceaccount.com). Used to give later stages access to the projects created here."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.pipeline_sa_project_id))
+    error_message = "pipeline_sa_project_id must be a valid project ID (output seed_project_id of stage 0)."
+  }
+}

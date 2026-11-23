@@ -18,10 +18,11 @@ module "common_projects" {
   labels            = merge(local.base_labels, { app = each.value.app })
 
   # Minimal API set. Each stage that owns the project turns on what it needs. A project without
-  # billing can only enable free APIs.
+  # billing can only enable free APIs. Billed projects also get their extra APIs (local.common_projects):
+  # stage SAs have no serviceusage admin on these projects, so the APIs a later stage needs are turned on here.
   activate_apis = local.project_billing_alias["c-${each.key}"] == "none" ? local.free_apis : concat(local.free_apis, [
     "storage.googleapis.com",
-  ])
+  ], each.value.extra_apis)
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
   create_project_sa = false

@@ -4,6 +4,9 @@
 
 project_prefix = "bnt"
 
+# Seed project of stage 0 (output seed_project_id), home of the pipeline service accounts.
+pipeline_sa_project_id = "bnt-b-seed-5d99"
+
 # Spec: every resource carries env, app, owner, cost_center and managed_by. env and managed_by are added by
 # the provider, app by each resource. Values: lowercase letters, digits, '_' or '-'.
 labels = {
