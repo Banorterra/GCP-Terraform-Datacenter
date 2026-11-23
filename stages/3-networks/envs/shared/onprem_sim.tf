@@ -25,6 +25,43 @@ resource "google_compute_subnetwork" "onprem_primary" {
   }
 }
 
+# Static internal IP for the on-prem host. The hub DNS forwarding zone (dns.tf) points at it, so it
+# must be stable across restarts.
+resource "google_compute_address" "onprem_host" {
+  project      = local.onprem_sim_project
+  name         = "${var.project_prefix}-c-onprem-host-ip"
+  subnetwork   = google_compute_subnetwork.onprem_primary.id
+  address_type = "INTERNAL"
+  region       = var.primary_region
+  purpose      = "GCE_ENDPOINT"
+}
+
+# Firewall rule: allow DNS (udp/tcp 53) from the GCP side to the on-prem resolver.
+resource "google_compute_firewall" "onprem_allow_dns_from_gcp" {
+  project   = local.onprem_sim_project
+  network   = google_compute_network.onprem.name
+  name      = "${var.project_prefix}-c-onprem-allow-dns"
+  direction = "INGRESS"
+  priority  = 1050
+
+  source_ranges = [
+    var.cidr_plan.hub.block,
+    var.cidr_plan.dev.block,
+    var.cidr_plan.qa.block,
+    var.cidr_plan.prod.block,
+  ]
+  target_tags = ["onprem-host"]
+
+  allow {
+    protocol = "udp"
+    ports    = ["53"]
+  }
+  allow {
+    protocol = "tcp"
+    ports    = ["53"]
+  }
+}
+
 # Linux VM that acts as the on-prem host. Internal IP only (org policy forbids external IPs on VMs).
 # Shielded VM on by default (org policy). Startup script turns on a tiny HTTP responder on :80 for
 # connectivity tests from the spokes.
@@ -44,6 +81,7 @@ resource "google_compute_instance" "onprem_host" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.onprem_primary.id
+    network_ip = google_compute_address.onprem_host.address
     # No access_config: no external IP.
   }
 
@@ -57,11 +95,22 @@ resource "google_compute_instance" "onprem_host" {
     enable-oslogin = "TRUE"
   }
 
+  # dnsmasq answers the banorterra.local. zone (hub forwards it over the VPN), python3 http.server
+  # answers on :80 for the Sprint 4 ping/HTTP gate.
   metadata_startup_script = <<-EOT
     #!/bin/bash
     set -eu
     apt-get update -y
-    apt-get install -y python3
+    apt-get install -y python3 dnsmasq
+    cat >/etc/dnsmasq.d/onprem.conf <<DNS
+    interface=ens4
+    bind-interfaces
+    no-resolv
+    domain=banorterra.local
+    local=/banorterra.local/
+    address=/host.banorterra.local/${google_compute_address.onprem_host.address}
+    DNS
+    systemctl enable --now dnsmasq
     cat >/etc/systemd/system/onprem-sim.service <<SVC
     [Unit]
     Description=onprem-sim HTTP responder

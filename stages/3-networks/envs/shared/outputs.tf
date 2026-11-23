@@ -40,3 +40,33 @@ output "cidr_plan" {
   description = "IP plan (same shape as var.cidr_plan). Re-exposed so spokes do not re-declare CIDRs."
   value       = var.cidr_plan
 }
+
+output "ncc_hub_id" {
+  description = "Network Connectivity Center hub ID. Spokes attach to this."
+  value       = google_network_connectivity_hub.main.id
+}
+
+output "hub_vpn_tunnel_names" {
+  description = "Names of the two HA VPN tunnels on the hub side. Useful for Monitoring dashboards."
+  value       = [for t in google_compute_vpn_tunnel.hub : t.name]
+}
+
+output "onprem_vpn_tunnel_names" {
+  description = "Names of the two HA VPN tunnels on the on-prem side."
+  value       = [for t in google_compute_vpn_tunnel.onprem : t.name]
+}
+
+output "hub_dns_zone_name" {
+  description = "Hub DNS managed-zone short name. Spokes DNS-peer to this."
+  value       = google_dns_managed_zone.hub_internal.name
+}
+
+output "hub_dns_zone" {
+  description = "Hub DNS domain (with trailing dot)."
+  value       = var.hub_dns_zone
+}
+
+output "onprem_dns_zone" {
+  description = "On-prem DNS domain (with trailing dot). Forwarded from the hub."
+  value       = var.onprem_dns_zone
+}
