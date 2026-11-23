@@ -1,7 +1,7 @@
 # Stage 1: org
 
 Referencia: `terraform-example-foundation/1-org`. Corre desde el pipeline como `sa-terraform-org`,
-prefijo de state `1-org` en el bucket de la etapa 0. Lee la etapa 0 vía `terraform_remote_state`.
+prefijo de state `1-org` en el bucket de la etapa 0. No lee el estado de la etapa 0: todo llega por variables.
 
 Crea los folders `common`, `dev`, `qa` y `prod`; los proyectos `net-hub`, `logging`, `security` y `backup`
 en `common`; un proyecto de red spoke (`<prefijo>-<env>-net-host`) por entorno; las políticas de
