@@ -1,0 +1,10 @@
+# Only for running stage 2 from your machine. Copy to terraform.tfvars (git-ignored) and fill in.
+# Team values that are not secret already live in terraform.auto.tfvars; CI passes the rest as TF_VAR_*.
+
+org_id          = "123456789012"
+billing_account = "ABCDEF-123456-7890AB"
+environment     = "shared"
+state_bucket    = "bnt-b-seed-tfstate-xxxx" # output state_bucket of stage 0
+
+# Only if the organization already has an access policy (gcloud access-context-manager policies list).
+# access_policy_id = "123456789"

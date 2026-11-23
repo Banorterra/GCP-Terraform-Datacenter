@@ -21,6 +21,8 @@ labelled_types := {
 	"google_redis_instance",
 	"google_filestore_instance",
 	"google_cloud_run_v2_service",
+	"google_kms_crypto_key",
+	"google_secret_manager_secret",
 }
 
 as_object(x) := x if is_object(x)

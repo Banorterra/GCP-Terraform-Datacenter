@@ -10,5 +10,6 @@ Copy `0000-template.md`, number it, and add it to the index.
 | [0003](0003-ci-cd-tool.md) | GitHub Actions with Workload Identity Federation | Proposed (client chooses) |
 | [0004](0004-terraform-version.md) | Terraform version and licence | Proposed |
 | [0005](0005-regions.md) | northamerica-south1 (Queretaro) primary, us-south1 (Dallas) DR | Accepted |
+| [0006](0006-security-stage.md) | Software KMS keys, write-only generated secrets, VPC-SC in dry-run | Proposed |
 
 Statuses: Proposed (needs a sign-off) / Accepted / Superseded by NNNN.
