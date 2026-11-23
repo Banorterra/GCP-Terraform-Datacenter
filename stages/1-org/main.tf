@@ -1,15 +1,9 @@
 # Stage 1: organization layout, policies, logging, SCC and budgets.
-# Reads stage 0 outputs through terraform_remote_state. The service account that runs this stage
-# is stage_service_accounts["org"] (see stages/0-bootstrap/sa.tf); it already holds the roles
-# listed there (orgpolicy.policyAdmin, logging.configWriter, folderAdmin, etc.).
-
-data "terraform_remote_state" "bootstrap" {
-  backend = "gcs"
-  config = {
-    bucket = var.state_bucket
-    prefix = "0-bootstrap"
-  }
-}
+# The service account that runs this stage is stage_service_accounts["org"] (see stages/0-bootstrap/sa.tf);
+# it already holds the roles listed there (orgpolicy.policyAdmin, logging.configWriter, folderAdmin, etc.).
+#
+# No terraform_remote_state of stage 0: nothing here needs its outputs (everything comes from variables),
+# and the stage SA may only read its own 1-org/ prefix of the state bucket.
 
 locals {
   # Same convention as stage 0: everything hangs off var.parent_folder when set, otherwise the org root.

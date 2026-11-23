@@ -113,7 +113,10 @@ jobs:
         if: always() && steps.plan.outcome != 'skipped'
         run: |
           {
-            echo "### \`${{ matrix.dir }}\`: $([[ '${{ steps.plan.outputs.changes }}' == 'true' ]] && echo 'CHANGES, waits for approval' || echo 'no changes')"
+            if [[ '${{ steps.plan.outcome }}' == 'failure' ]]; then status='PLAN FAILED, nothing is applied'
+            elif [[ '${{ steps.plan.outputs.changes }}' == 'true' ]]; then status='CHANGES, waits for approval'
+            else status='no changes'; fi
+            echo "### \`${{ matrix.dir }}\`: ${status}"
             if [[ '${{ steps.plan.outputs.changes }}' == 'true' || '${{ steps.plan.outcome }}' == 'failure' ]]; then
               echo '<details><summary>Plan</summary>'; echo; echo '```'
               tail -c 60000 plan.txt

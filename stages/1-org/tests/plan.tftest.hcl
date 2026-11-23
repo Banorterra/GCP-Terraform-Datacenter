@@ -6,18 +6,6 @@
 mock_provider "google" {}
 mock_provider "google-beta" {}
 
-# Mock the data source that reads stage 0 state. The outputs we read here must exist, but
-# their values don't matter for the plan graph.
-override_data {
-  target = data.terraform_remote_state.bootstrap
-  values = {
-    outputs = {
-      seed_project_id = "mock-seed"
-      state_bucket    = "mock-state-bucket"
-    }
-  }
-}
-
 variables {
   org_id          = "123456789012"
   billing_account = "ABCDEF-123456-7890AB"
