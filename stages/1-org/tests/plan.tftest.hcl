@@ -187,7 +187,7 @@ run "sinks_and_notifications" {
   }
 
   assert {
-    condition     = google_scc_notification_config.all_findings.organization == "123456789012"
+    condition     = google_scc_v2_organization_notification_config.all_findings.organization == "123456789012"
     error_message = "SCC notification must target the org."
   }
 }
