@@ -1,6 +1,8 @@
-# Billing budgets. The team has a single free-trial credit (300 USD) for the whole project, so:
-#   - one budget for the whole billing account, the one that matters: it tracks how much of the credit is gone;
-#   - one small budget per project created here (the team's design: every project has a spending alert).
+# Billing budgets. Each free-trial billing account has its own credit (300 USD), so:
+#   - one budget per billing account (local.billing_accounts), the one that matters: it tracks how much
+#     of that account's credit is gone;
+#   - one small budget per project with billing, on the account that pays for it.
+# Amounts and currency come from each account (budgets must use the account's currency).
 #
 # credit_types_treatment = EXCLUDE_ALL_CREDITS: budgets measure gross cost. With INCLUDE_ALL_CREDITS (the
 # default) the free-trial credit cancels the cost, the net stays at 0 and no alert would ever fire.
@@ -15,6 +17,9 @@ locals {
     { for k, p in module.common_projects : "c-${k}" => p.project_number },
     { for k, p in module.net_host_projects : "${k}-net-host" => p.project_number },
   )
+
+  # Only projects with billing get a budget, on their own billing account.
+  budgeted_projects = { for k, n in local.stage_projects : k => n if local.project_billing_alias[k] != "none" }
 }
 
 # One email notification channel per address. count (not for_each) because the list is sensitive;
@@ -31,9 +36,16 @@ resource "google_monitoring_notification_channel" "email" {
   }
 }
 
+moved {
+  from = google_billing_budget.total
+  to   = google_billing_budget.total["main"]
+}
+
 resource "google_billing_budget" "total" {
-  billing_account = var.billing_account
-  display_name    = "${var.project_prefix}-billing-account-total"
+  for_each = local.billing_accounts
+
+  billing_account = each.value.id
+  display_name    = "${var.project_prefix}-billing-account-total-${each.key}"
 
   budget_filter {
     credit_types_treatment = "EXCLUDE_ALL_CREDITS"
@@ -41,8 +53,8 @@ resource "google_billing_budget" "total" {
 
   amount {
     specified_amount {
-      currency_code = var.budget_currency
-      units         = tostring(var.budget_total_amount)
+      currency_code = each.value.currency
+      units         = tostring(each.value.budget_total)
     }
   }
 
@@ -61,9 +73,9 @@ resource "google_billing_budget" "total" {
 }
 
 resource "google_billing_budget" "project" {
-  for_each = local.stage_projects
+  for_each = local.budgeted_projects
 
-  billing_account = var.billing_account
+  billing_account = local.billing_accounts[local.project_billing_alias[each.key]].id
   display_name    = "${var.project_prefix}-${each.key}"
 
   budget_filter {
@@ -73,8 +85,8 @@ resource "google_billing_budget" "project" {
 
   amount {
     specified_amount {
-      currency_code = var.budget_currency
-      units         = tostring(var.budget_project_monthly_amount)
+      currency_code = local.billing_accounts[local.project_billing_alias[each.key]].currency
+      units         = tostring(local.billing_accounts[local.project_billing_alias[each.key]].budget_project)
     }
   }
 

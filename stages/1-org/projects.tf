@@ -14,19 +14,14 @@ module "common_projects" {
   random_project_id = false
   org_id            = var.org_id
   folder_id         = google_folder.env["common"].id
-  billing_account   = var.billing_account
+  billing_account   = local.project_billing_account["c-${each.key}"]
   labels            = merge(local.base_labels, { app = each.value.app })
 
-  # Minimal API set. Each stage that owns the project turns on what it needs.
-  activate_apis = [
-    "cloudresourcemanager.googleapis.com",
-    "cloudbilling.googleapis.com",
-    "iam.googleapis.com",
-    "serviceusage.googleapis.com",
-    "logging.googleapis.com",
-    "monitoring.googleapis.com",
+  # Minimal API set. Each stage that owns the project turns on what it needs. A project without
+  # billing can only enable free APIs.
+  activate_apis = local.project_billing_alias["c-${each.key}"] == "none" ? local.free_apis : concat(local.free_apis, [
     "storage.googleapis.com",
-  ]
+  ])
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
   create_project_sa = false
@@ -47,7 +42,7 @@ module "net_host_projects" {
   random_project_id = false
   org_id            = var.org_id
   folder_id         = google_folder.env[each.value].id
-  billing_account   = var.billing_account
+  billing_account   = local.project_billing_account["${each.value}-net-host"]
 
   labels = merge(var.labels, {
     env        = each.value
@@ -55,13 +50,9 @@ module "net_host_projects" {
     app        = "net-host"
   })
 
-  activate_apis = [
-    "cloudresourcemanager.googleapis.com",
-    "cloudbilling.googleapis.com",
-    "iam.googleapis.com",
-    "serviceusage.googleapis.com",
+  activate_apis = local.project_billing_alias["${each.value}-net-host"] == "none" ? local.free_apis : concat(local.free_apis, [
     "compute.googleapis.com",
-  ]
+  ])
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
   create_project_sa = false

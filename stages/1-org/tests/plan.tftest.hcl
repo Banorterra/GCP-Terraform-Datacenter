@@ -6,6 +6,24 @@
 mock_provider "google" {}
 mock_provider "google-beta" {}
 
+# imports.tf adopts policies that already exist in the real org. Mock providers can't import,
+# so these overrides stand in for the imported objects.
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["iam.automaticIamGrantsForDefaultServiceAccounts"]
+}
+
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["iam.disableServiceAccountKeyUpload"]
+}
+
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["storage.uniformBucketLevelAccess"]
+}
+
+override_resource {
+  target = google_org_policy_policy.allowed_policy_member_domains
+}
+
 variables {
   org_id          = "123456789012"
   billing_account = "ABCDEF-123456-7890AB"
@@ -89,10 +107,13 @@ run "budgets" {
 
   variables {
     alert_emails = ["equipo@example.com"]
+    # Every project on the main account, whatever terraform.auto.tfvars assigns.
+    extra_billing_accounts = {}
+    project_billing        = {}
   }
 
   assert {
-    condition     = google_billing_budget.total.budget_filter[0].credit_types_treatment == "EXCLUDE_ALL_CREDITS"
+    condition     = google_billing_budget.total["main"].budget_filter[0].credit_types_treatment == "EXCLUDE_ALL_CREDITS"
     error_message = "The total budget must measure gross cost, or free-trial credits hide every alert."
   }
 
@@ -102,13 +123,48 @@ run "budgets" {
   }
 
   assert {
-    condition     = length(google_monitoring_notification_channel.email) == 1 && length(google_essential_contacts_contact.team) == 1
-    error_message = "Each alert email must get a notification channel and an essential contact."
+    condition     = length(google_monitoring_notification_channel.email) == 1
+    error_message = "Each alert email must get a notification channel."
+  }
+}
+
+run "multiple_billing_accounts" {
+  command = plan
+
+  variables {
+    extra_billing_accounts = {
+      jesus = { id = "111111-222222-333333", currency = "MXN", budget_total = 5500, budget_project = 200 }
+    }
+    project_billing = {
+      "c-logging"   = "jesus"
+      "c-backup"    = "none"
+      "qa-net-host" = "none"
+    }
   }
 
   assert {
-    condition     = contains(google_org_policy_policy.essential_contacts_domains.spec[0].rules[0].values[0].allowed_values, "@example.com")
-    error_message = "Essential contact domains must include the alert emails' domains."
+    condition     = local.project_billing_account["c-logging"] == "111111-222222-333333"
+    error_message = "A project assigned to an extra billing account must use that account."
+  }
+
+  assert {
+    condition     = local.project_billing_account["c-backup"] == "" && local.project_billing_account["c-net-hub"] == "ABCDEF-123456-7890AB"
+    error_message = "\"none\" must leave the project without billing; unlisted projects use the main account."
+  }
+
+  assert {
+    condition     = length(google_billing_budget.total) == 2 && google_billing_budget.total["jesus"].amount[0].specified_amount[0].currency_code == "MXN"
+    error_message = "Every billing account must get its own total budget in its own currency."
+  }
+
+  assert {
+    condition     = length(google_billing_budget.project) == 5 && !contains(keys(google_billing_budget.project), "c-backup")
+    error_message = "Only projects with billing get a project budget."
+  }
+
+  assert {
+    condition     = google_billing_budget.project["c-logging"].billing_account == "111111-222222-333333"
+    error_message = "A project budget must live on the account that pays for the project."
   }
 }
 

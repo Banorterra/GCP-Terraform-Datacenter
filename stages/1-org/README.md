@@ -5,7 +5,7 @@ prefijo de state `1-org` en el bucket de la etapa 0. No lee el estado de la etap
 
 Crea los folders `common`, `dev`, `qa` y `prod`; los proyectos `net-hub`, `logging`, `security` y `backup`
 en `common`; un proyecto de red spoke (`<prefijo>-<env>-net-host`) por entorno; las políticas de
-organización; el sink de auditoría; las notificaciones de SCC; los presupuestos y los Essential Contacts.
+organización; el sink de auditoría; las notificaciones de SCC y los presupuestos.
 
 ## Decisiones
 
@@ -17,12 +17,14 @@ organización; el sink de auditoría; las notificaciones de SCC; los presupuesto
 | Proyecto de red por entorno | `<prefijo>-<env>-net-host` | El reto pide "un proyecto de red spoke" por entorno; es el host de la Shared VPC del entorno (diagrama 2) |
 | Cuenta de servicio por proyecto | No se crea (`create_project_sa = false`) | Nadie la usa y el reto no la pide |
 | Regiones permitidas | `in:northamerica-south1-locations` + `in:us-south1-locations` | ADR 0005: Querétaro primaria, Dallas DR |
-| Políticas de organización | Sin llaves de SA, sin IPs externas en VMs, Shielded VM, OS Login, sin red default, buckets uniformes y sin acceso público, Cloud SQL sin IP pública, IAM solo para principales de la organización, contactos solo de dominios permitidos | Lo que pide el reto más el endurecimiento del example foundation |
+| Políticas de organización | Sin llaves de SA, sin IPs externas en VMs, Shielded VM, OS Login, sin red default, buckets uniformes y sin acceso público, Cloud SQL sin IP pública, IAM solo para principales de la organización | Lo que pide el reto más el endurecimiento del example foundation |
 | IAM solo para la organización | `iam.allowedPolicyMemberDomains` con el customer ID de Cloud Identity y el principal set de la organización | El principal set deja pasar cuentas de servicio, service agents (por ejemplo el de SCC) y el pool de GitHub |
 | Retención de auditoría | **Bloqueada**, 1 día en el sandbox | El reto pide retención bloqueada. Con 1 día el bloqueo es real pero se puede destruir al terminar. Al bloquear, GCS pone un *lien* en el proyecto de logging hasta que el bucket se borra |
 | Borrado | `folder_deletion_protection = false`, `project_deletion_policy = "DELETE"` | Sandbox con crédito limitado: tiene que funcionar `terraform destroy` |
-| Presupuestos | Uno de 300 USD para toda la cuenta de facturación + uno de 10 USD por proyecto, con `EXCLUDE_ALL_CREDITS` | Con `INCLUDE_ALL_CREDITS` el crédito de prueba deja el costo en 0 y nunca hay alertas |
-| Avisos | Correos de `ALERT_EMAILS` (secret de GitHub) como canales de Monitoring y Essential Contacts | Los buzones `@banorterra.com` no se leen. Es secret para que los correos no salgan en el repo público ni en los planes |
+| Cuentas de facturación | La principal (`TF_VAR_billing_account`) más las de `extra_billing_accounts`; `project_billing` dice cuál paga cada proyecto o `"none"` | Una cuenta de prueba solo liga 3 proyectos (ADR 0007) |
+| Presupuestos | Uno por cuenta de facturación (su crédito, en su moneda) + uno por proyecto con billing, con `EXCLUDE_ALL_CREDITS` | Con `INCLUDE_ALL_CREDITS` el crédito de prueba deja el costo en 0 y nunca hay alertas |
+| Avisos | Correos de `ALERT_EMAILS` (secret de GitHub) como canales de Monitoring de los presupuestos | Los buzones `@banorterra.com` no se leen. Es secret para que los correos no salgan en el repo público ni en los planes. No usamos Essential Contacts: la org trae la restricción administrada `essentialcontacts.managed.allowedContactDomains`, que solo deja contactos `@banorterra.com` |
+| Políticas que ya existían | `imports.tf` adopta 4 políticas que Google crea en orgs nuevas (secure by default) | Crearlas daba 409 "already exists"; importarlas deja una sola fuente de verdad |
 
 ## Variables
 

@@ -6,5 +6,5 @@ billing_account = "ABCDEF-123456-7890AB"
 environment     = "shared"
 state_bucket    = "bnt-b-seed-tfstate-xxxx" # output state_bucket of stage 0
 
-# Emails for budget alerts and Essential Contacts (in CI: the ALERT_EMAILS secret).
+# Emails for budget alerts (in CI: the ALERT_EMAILS secret).
 alert_emails = ["someone@example.com"]
