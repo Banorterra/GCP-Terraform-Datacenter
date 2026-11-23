@@ -110,7 +110,7 @@ run "budgets" {
   }
 
   assert {
-    condition     = google_billing_budget.total.budget_filter[0].credit_types_treatment == "EXCLUDE_ALL_CREDITS"
+    condition     = google_billing_budget.total["main"].budget_filter[0].credit_types_treatment == "EXCLUDE_ALL_CREDITS"
     error_message = "The total budget must measure gross cost, or free-trial credits hide every alert."
   }
 
@@ -122,6 +122,46 @@ run "budgets" {
   assert {
     condition     = length(google_monitoring_notification_channel.email) == 1
     error_message = "Each alert email must get a notification channel."
+  }
+}
+
+run "multiple_billing_accounts" {
+  command = plan
+
+  variables {
+    extra_billing_accounts = {
+      jesus = { id = "111111-222222-333333", currency = "MXN", budget_total = 5500, budget_project = 200 }
+    }
+    project_billing = {
+      "c-logging"   = "jesus"
+      "c-backup"    = "none"
+      "qa-net-host" = "none"
+    }
+  }
+
+  assert {
+    condition     = local.project_billing_account["c-logging"] == "111111-222222-333333"
+    error_message = "A project assigned to an extra billing account must use that account."
+  }
+
+  assert {
+    condition     = local.project_billing_account["c-backup"] == "" && local.project_billing_account["c-net-hub"] == "ABCDEF-123456-7890AB"
+    error_message = "\"none\" must leave the project without billing; unlisted projects use the main account."
+  }
+
+  assert {
+    condition     = length(google_billing_budget.total) == 2 && google_billing_budget.total["jesus"].amount[0].specified_amount[0].currency_code == "MXN"
+    error_message = "Every billing account must get its own total budget in its own currency."
+  }
+
+  assert {
+    condition     = length(google_billing_budget.project) == 5 && !contains(keys(google_billing_budget.project), "c-backup")
+    error_message = "Only projects with billing get a project budget."
+  }
+
+  assert {
+    condition     = google_billing_budget.project["c-logging"].billing_account == "111111-222222-333333"
+    error_message = "A project budget must live on the account that pays for the project."
   }
 }
 

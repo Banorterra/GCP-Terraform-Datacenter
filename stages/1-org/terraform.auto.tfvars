@@ -17,6 +17,17 @@ project_deletion_policy    = "DELETE"
 audit_log_retention_days   = 1
 audit_log_retention_locked = true
 
-# Budgets (USD): the free-trial credit for the whole billing account, and a small one per project.
+# Budgets for the main billing account (USD): its free-trial credit, and a small one per project.
 budget_total_amount           = 300
 budget_project_monthly_amount = 10
+
+# Free-trial billing accounts link at most 3 projects each (ADR 0007). Extra accounts from the team,
+# with budgets in each account's currency, and which account pays for each project ("none" = no billing).
+# extra_billing_accounts = {
+#   jesus = { id = "012B54-FF8A43-91674F", currency = "MXN", budget_total = 5500, budget_project = 200 }
+# }
+# project_billing = {
+#   "c-logging"  = "jesus"
+#   "c-security" = "jesus"
+#   "c-backup"   = "none"
+# }
