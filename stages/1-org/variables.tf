@@ -87,6 +87,38 @@ variable "budget_project_monthly_amount" {
   default     = 10
 }
 
+variable "extra_billing_accounts" {
+  description = <<-EOT
+    More billing accounts, besides var.billing_account (key "main"), for the projects of this stage.
+    Each free-trial billing account can only have 3 projects with billing, so the team spreads projects
+    over several accounts. Key: short alias used in var.project_billing. currency must be the account's
+    currency (budgets fail otherwise); budget_total and budget_project are in that currency.
+  EOT
+  type = map(object({
+    id             = string
+    currency       = string
+    budget_total   = number
+    budget_project = number
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for k, a in var.extra_billing_accounts : can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", a.id)) && !contains(["main", "none"], k)])
+    error_message = "Each extra billing account needs an id like ABCDEF-123456-7890AB, and the aliases main and none are reserved."
+  }
+}
+
+variable "project_billing" {
+  description = <<-EOT
+    Which billing account each project of this stage uses, by project key (c-net-hub, c-logging,
+    c-security, c-backup, dev-net-host, qa-net-host, prod-net-host). Value: "main", an alias from
+    var.extra_billing_accounts, or "none" for a project without billing (it can only use free APIs).
+    Projects not listed use "main".
+  EOT
+  type        = map(string)
+  default     = {}
+}
+
 variable "alert_emails" {
   description = "Emails that receive budget alerts and Google's essential notifications. Pass it from the ALERT_EMAILS GitHub secret (JSON list); it is sensitive so it never shows in plans or PR comments."
   type        = list(string)

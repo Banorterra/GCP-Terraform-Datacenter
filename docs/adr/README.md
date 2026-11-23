@@ -11,5 +11,6 @@ Copy `0000-template.md`, number it, and add it to the index.
 | [0004](0004-terraform-version.md) | Terraform version and licence | Proposed |
 | [0005](0005-regions.md) | northamerica-south1 (Queretaro) primary, us-south1 (Dallas) DR | Accepted |
 | [0006](0006-security-stage.md) | Software KMS keys, write-only generated secrets, VPC-SC in dry-run | Proposed |
+| [0007](0007-multiple-billing-accounts.md) | Spread projects over the team's free-trial billing accounts | Proposed |
 
 Statuses: Proposed (needs a sign-off) / Accepted / Superseded by NNNN.
