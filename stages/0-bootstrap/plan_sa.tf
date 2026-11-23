@@ -6,7 +6,8 @@
 # (see the sa_mapping in cicd.tf).
 #
 # What a plan SA can do: read resources across the organization, read billing, and read (not write or
-# lock) its own stage's state prefix. PR plans therefore run with -lock=false.
+# lock) its own stage's state prefix and those of earlier stages (state_read.tf). PR plans therefore run with
+# -lock=false.
 
 locals {
   plan_stages = toset(["org", "security", "networks", "projects", "workloads"])

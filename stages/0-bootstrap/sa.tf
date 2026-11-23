@@ -195,6 +195,7 @@ resource "google_billing_account_iam_member" "org_billing_sink" {
 # Object-level access limited to the stage's own prefix with an IAM condition (needs uniform
 # bucket-level access, which the bootstrap module enables). The second clause lets `list`
 # requests for that prefix through, because list requests carry no object name.
+# Read-only access to earlier stages' prefixes (for terraform_remote_state) is in state_read.tf.
 resource "google_storage_bucket_iam_member" "stage_state" {
   for_each = local.state_prefix
 
