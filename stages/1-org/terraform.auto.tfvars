@@ -20,9 +20,11 @@ project_deletion_policy    = "DELETE"
 audit_log_retention_days   = 1
 audit_log_retention_locked = true
 
-# Budgets for the main billing account (USD): its free-trial credit, and a small one per project.
-budget_total_amount           = 300
-budget_project_monthly_amount = 10
+# Budgets for the main billing account (Adrián's free trial, in MXN): its credit (300 USD is about
+# 5,500 MXN), and a small one per project (10 USD is about 200 MXN). The currency must match the account.
+budget_currency               = "MXN"
+budget_total_amount           = 5500
+budget_project_monthly_amount = 200
 
 # Free-trial billing accounts link at most 3 projects each (ADR 0007). Extra accounts from the team,
 # with budgets in each account's currency, and which account pays for each project ("none" = no billing).

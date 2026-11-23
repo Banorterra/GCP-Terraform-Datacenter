@@ -35,9 +35,21 @@ resource "google_logging_organization_sink" "audit" {
   filter           = var.audit_log_filter
 }
 
+# Org sinks write as the organization's Logging service agent
+# (service-org-<org-id>@gcp-sa-logging). Google creates it lazily, and the first apply failed because
+# it did not exist yet when the bucket IAM was set. Reading the org's Logging settings makes Google
+# create it, so the IAM grant below waits for this read.
+data "google_logging_organization_settings" "org" {
+  organization = var.org_id
+
+  depends_on = [google_logging_organization_sink.audit]
+}
+
 # The sink's writer identity needs object creation on the bucket.
 resource "google_storage_bucket_iam_member" "audit_sink_writer" {
   bucket = google_storage_bucket.audit_logs.name
   role   = "roles/storage.objectCreator"
   member = google_logging_organization_sink.audit.writer_identity
+
+  depends_on = [data.google_logging_organization_settings.org]
 }
