@@ -43,7 +43,6 @@ output "org_policy_names" {
       google_org_policy_policy.resource_locations.name,
       google_org_policy_policy.vm_external_ip.name,
       google_org_policy_policy.allowed_policy_member_domains.name,
-      google_org_policy_policy.essential_contacts_domains.name,
     ],
   )
 }

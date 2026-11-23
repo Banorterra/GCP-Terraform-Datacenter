@@ -6,6 +6,24 @@
 mock_provider "google" {}
 mock_provider "google-beta" {}
 
+# imports.tf adopts policies that already exist in the real org. Mock providers can't import,
+# so these overrides stand in for the imported objects.
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["iam.automaticIamGrantsForDefaultServiceAccounts"]
+}
+
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["iam.disableServiceAccountKeyUpload"]
+}
+
+override_resource {
+  target = google_org_policy_policy.boolean_enforce["storage.uniformBucketLevelAccess"]
+}
+
+override_resource {
+  target = google_org_policy_policy.allowed_policy_member_domains
+}
+
 variables {
   org_id          = "123456789012"
   billing_account = "ABCDEF-123456-7890AB"
@@ -102,13 +120,8 @@ run "budgets" {
   }
 
   assert {
-    condition     = length(google_monitoring_notification_channel.email) == 1 && length(google_essential_contacts_contact.team) == 1
-    error_message = "Each alert email must get a notification channel and an essential contact."
-  }
-
-  assert {
-    condition     = contains(google_org_policy_policy.essential_contacts_domains.spec[0].rules[0].values[0].allowed_values, "@example.com")
-    error_message = "Essential contact domains must include the alert emails' domains."
+    condition     = length(google_monitoring_notification_channel.email) == 1
+    error_message = "Each alert email must get a notification channel."
   }
 }
 
