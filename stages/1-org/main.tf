@@ -18,11 +18,16 @@ locals {
 
   # Projects inside the common folder. Each one gets a short name used in the project ID
   # (<prefix>-c-<domain>). The project ID limit is 30 chars; prefix is 2-3 chars.
+  # extra_apis: APIs on top of the minimal set in projects.tf, for the stage that fills the project.
   common_projects = {
-    net-hub  = { app = "net-hub", description = "Shared VPC hub, HA VPN to on-prem, DNS." }
-    logging  = { app = "logging", description = "Org-level audit sink bucket and log views." }
-    security = { app = "security", description = "KMS, Secret Manager, SCC notifications (stage 2 fills it)." }
-    backup   = { app = "backup", description = "Backup and DR vaults (stage 5 fills it)." }
+    net-hub = { app = "net-hub", description = "Shared VPC hub, HA VPN to on-prem, DNS.", extra_apis = [] }
+    logging = { app = "logging", description = "Org-level audit sink bucket and log views.", extra_apis = [] }
+    security = {
+      app         = "security"
+      description = "KMS, Secret Manager, SCC notifications (stage 2 fills it)."
+      extra_apis  = ["cloudkms.googleapis.com", "secretmanager.googleapis.com"]
+    }
+    backup = { app = "backup", description = "Backup and DR vaults (stage 5 fills it).", extra_apis = [] }
   }
 
   base_labels = merge(var.labels, {

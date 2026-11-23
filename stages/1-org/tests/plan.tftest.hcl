@@ -19,6 +19,7 @@ variables {
   }
   folder_deletion_protection = false
   project_deletion_policy    = "DELETE"
+  pipeline_sa_project_id     = "dc-b-seed-0000"
 }
 
 run "folders_and_projects" {
@@ -133,5 +134,22 @@ run "sinks_and_notifications" {
   assert {
     condition     = google_scc_notification_config.all_findings.organization == "123456789012"
     error_message = "SCC notification must target the org."
+  }
+}
+
+run "stage_access" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for r in ["roles/cloudkms.admin", "roles/secretmanager.admin"] :
+      google_project_iam_member.stage_access["security/${r}"].member == "serviceAccount:sa-terraform-security@dc-b-seed-0000.iam.gserviceaccount.com"
+    ])
+    error_message = "The stage 2 SA must get KMS and Secret Manager admin on the security project."
+  }
+
+  assert {
+    condition     = length(google_project_iam_member.stage_access) == 2
+    error_message = "Stage 1 must grant later stages only the roles listed in stage_access.tf."
   }
 }

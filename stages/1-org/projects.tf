@@ -17,8 +17,9 @@ module "common_projects" {
   billing_account   = var.billing_account
   labels            = merge(local.base_labels, { app = each.value.app })
 
-  # Minimal API set. Each stage that owns the project turns on what it needs.
-  activate_apis = [
+  # Minimal API set, plus the extra APIs of each project (local.common_projects). Stage SAs do not get
+  # serviceusage admin on these projects, so the APIs a later stage needs are turned on here.
+  activate_apis = concat([
     "cloudresourcemanager.googleapis.com",
     "cloudbilling.googleapis.com",
     "iam.googleapis.com",
@@ -26,7 +27,7 @@ module "common_projects" {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "storage.googleapis.com",
-  ]
+  ], each.value.extra_apis)
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
   create_project_sa = false

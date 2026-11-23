@@ -22,6 +22,7 @@ organización; el sink de auditoría; las notificaciones de SCC; los presupuesto
 | Retención de auditoría | **Bloqueada**, 1 día en el sandbox | El reto pide retención bloqueada. Con 1 día el bloqueo es real pero se puede destruir al terminar. Al bloquear, GCS pone un *lien* en el proyecto de logging hasta que el bucket se borra |
 | Borrado | `folder_deletion_protection = false`, `project_deletion_policy = "DELETE"` | Sandbox con crédito limitado: tiene que funcionar `terraform destroy` |
 | Presupuestos | Uno de 300 USD para toda la cuenta de facturación + uno de 10 USD por proyecto, con `EXCLUDE_ALL_CREDITS` | Con `INCLUDE_ALL_CREDITS` el crédito de prueba deja el costo en 0 y nunca hay alertas |
+| Acceso de etapas siguientes | `stage_access.tf`: `cloudkms.admin` y `secretmanager.admin` a `sa-terraform-security` solo en el proyecto `security`, y sus APIs encendidas en `projects.tf` | La etapa 0 no podía dar roles en proyectos que aún no existían. Necesita `pipeline_sa_project_id` (proyecto seed) |
 | Avisos | Correos de `ALERT_EMAILS` (secret de GitHub) como canales de Monitoring y Essential Contacts | Los buzones `@banorterra.com` no se leen. Es secret para que los correos no salgan en el repo público ni en los planes |
 
 ## Variables
