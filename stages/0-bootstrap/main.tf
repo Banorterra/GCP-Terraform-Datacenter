@@ -71,6 +71,7 @@ module "seed_bootstrap" {
     "accesscontextmanager.googleapis.com",
     "billingbudgets.googleapis.com",
     "essentialcontacts.googleapis.com",
+    "orgpolicy.googleapis.com", # Org Policy v2 API (stage 1); stage SAs use the seed project for quota
     "cloudasset.googleapis.com",
   ]
 

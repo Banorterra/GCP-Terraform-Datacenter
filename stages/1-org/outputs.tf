@@ -35,15 +35,15 @@ output "scc_findings_topic" {
   value       = google_pubsub_topic.scc_findings.id
 }
 
-output "budget_alerts_topic" {
-  description = "Pub/Sub topic (ID form) that receives every billing budget alert."
-  value       = google_pubsub_topic.budget_alerts.id
-}
-
 output "org_policy_names" {
   description = "Names of the organization policies managed by this stage. Useful for drift inspection."
   value = concat(
     [for p in google_org_policy_policy.boolean_enforce : p.name],
-    [google_org_policy_policy.resource_locations.name, google_org_policy_policy.vm_external_ip.name],
+    [
+      google_org_policy_policy.resource_locations.name,
+      google_org_policy_policy.vm_external_ip.name,
+      google_org_policy_policy.allowed_policy_member_domains.name,
+      google_org_policy_policy.essential_contacts_domains.name,
+    ],
   )
 }
