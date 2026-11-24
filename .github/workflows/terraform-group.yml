@@ -1,0 +1,229 @@
+# Reusable workflow: plan and apply ONE group of roots. Called by apply.yml, once per group, in order.
+# A group is one stage and one scope:
+#   scope "shared": the root without an environment (1-org, 2-security) or envs/shared (the hub in 3-networks).
+#   scope "envs":   envs/dev, envs/qa and envs/prod of that stage (or only the one in input env).
+# Because apply.yml waits for each group to finish before calling the next, every plan sees what the earlier
+# groups just created (for example, 4-projects/dev reads the 3-networks/dev outputs through terraform_remote_state).
+#
+#   1. roots:   roots of this group that exist in the repository. None: the rest is skipped.
+#   2. plan:    plans each root as the stage's service account, checks it with conftest and shows it in the run
+#               summary. Roots with changes save their plan in the state bucket, under the stage's own prefix.
+#   3. collect: list of roots of this group with changes. If any plan failed, nothing is applied.
+#   4. apply:   one job per root with changes, in the root's GitHub environment (waits for its reviewers).
+#               It applies exactly the saved plan; Terraform refuses it if the state changed since it was made.
+name: terraform-group
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: Stage folder name, for example 3-networks.
+        type: string
+        required: true
+      scope:
+        description: shared or envs.
+        type: string
+        required: true
+      env:
+        description: For scope envs, only this environment (dev, qa or prod); all = every environment.
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_org_id: ${{ vars.ORG_ID }}
+  TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
+  TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+  # JSON list of emails for alerts (stage 1), from the ALERT_EMAILS secret; [] when not set.
+  TF_VAR_alert_emails: ${{ secrets.ALERT_EMAILS || '[]' }}
+  # Prefix of this group's artifacts, so collect only reads the roots of this group.
+  GROUP: ${{ inputs.stage }}-${{ inputs.scope }}
+
+jobs:
+  roots:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.roots.outputs.matrix }}
+      any: ${{ steps.roots.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: roots
+        run: |
+          matrix="$(bash scripts/changed-roots.sh --all | jq -c --arg stage '${{ inputs.stage }}' --arg scope '${{ inputs.scope }}' --arg env '${{ inputs.env }}' '
+            {include: [.include[] | select(.stage == $stage)
+              | select(if $scope == "shared" then (.env == "" or .env == "shared")
+                       else (.env != "" and .env != "shared" and ($env == "all" or .env == $env)) end)]}')"
+          echo "Roots in ${GROUP}: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+  plan:
+    needs: roots
+    if: needs.roots.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.roots.outputs.matrix) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan > plan.txt 2>&1
+          code=$?
+          set -e
+          cat plan.txt
+          # -detailed-exitcode: 0 = no changes, 1 = error, 2 = changes
+          if [[ $code -eq 1 ]]; then exit 1; fi
+          echo "changes=$([[ $code -eq 2 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          terraform show -json tfplan > plan.json
+          echo "id=$(tr '/' '_' <<<"${{ matrix.dir }}")" >> "$GITHUB_OUTPUT"
+
+      - name: Policy check (conftest)
+        run: |
+          version="${{ vars.CONFTEST_VERSION || '0.56.0' }}"
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest test plan.json --policy "$GITHUB_WORKSPACE/policies" --no-color
+
+      - name: Plan to run summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          {
+            if [[ '${{ steps.plan.outcome }}' == 'failure' ]]; then status='PLAN FAILED, nothing is applied'
+            elif [[ '${{ steps.plan.outputs.changes }}' == 'true' ]]; then status='CHANGES, waits for approval'
+            else status='no changes'; fi
+            echo "### \`${{ matrix.dir }}\`: ${status}"
+            if [[ '${{ steps.plan.outputs.changes }}' == 'true' || '${{ steps.plan.outcome }}' == 'failure' ]]; then
+              echo '<details><summary>Plan</summary>'; echo; echo '```'
+              tail -c 60000 plan.txt
+              echo '```'; echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save plan for the apply job
+        if: steps.plan.outputs.changes == 'true'
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+        run: |
+          gcloud storage cp tfplan \
+            "gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/${{ steps.plan.outputs.id }}.tfplan"
+          jq -cn --argjson m "$MATRIX" --arg id '${{ steps.plan.outputs.id }}' '$m + {id: $id}' \
+            > "$RUNNER_TEMP/changes.json"
+
+      - name: Mark root as changed
+        if: steps.plan.outputs.changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: changes-${{ env.GROUP }}-${{ steps.plan.outputs.id }}
+          path: ${{ runner.temp }}/changes.json
+          retention-days: 1
+
+  collect:
+    needs: plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect.outputs.matrix }}
+      any: ${{ steps.collect.outputs.any }}
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # no root with changes means no artifacts
+        with:
+          pattern: changes-${{ env.GROUP }}-*
+          path: changes
+
+      - id: collect
+        run: |
+          mkdir -p changes
+          matrix="$(find changes -name changes.json -exec cat {} + 2>/dev/null | jq -cs '{include: sort_by(.dir)}')"
+          echo "Roots to apply in ${GROUP}: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+  apply:
+    needs: collect
+    if: needs.collect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.gh_env }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      # dev, qa and prod of one stage do not depend on each other: they wait for approval and apply in parallel.
+      # If one fails, the others still finish, but apply.yml does not start the next group.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.collect.outputs.matrix) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+      PLAN_OBJECT: gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/${{ matrix.id }}.tfplan
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Fetch the approved plan
+        run: gcloud storage cp "$PLAN_OBJECT" tfplan
+
+      - name: terraform apply (the saved plan, nothing else)
+        run: terraform apply -input=false -no-color -lock-timeout=5m tfplan
+
+      - name: Delete the saved plan
+        if: always()
+        run: gcloud storage rm "$PLAN_OBJECT" || true
