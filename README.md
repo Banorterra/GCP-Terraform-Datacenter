@@ -20,7 +20,9 @@ stages/4-projects/      service projects per application            envs/{dev,qa
 stages/5-workloads/     GKE, MIG, Cloud SQL, storage, LB, backup    envs/{dev,qa,prod}
 policies/               Conftest (OPA) rules run on every plan
 scripts/                changed-roots.sh (which roots a PR touches), sync-boilerplate.sh
-.github/workflows/      pr.yml (fmt, validate, plan + policy check, plan comment), apply.yml (after merge: plan every root, approve per environment, apply the saved plan)
+.github/workflows/      pr.yml (fmt, validate, plan + policy check, plan comment)
+                        apply.yml (after merge or by hand: stage by stage in series, plan, approve per environment, apply the saved plan; uses terraform-group.yml)
+                        destroy.yml (by hand only: destroy one stage or stages 5-4-3 of one environment, with confirmation and approval)
 docs/adr/               architecture decision records
 ```
 
