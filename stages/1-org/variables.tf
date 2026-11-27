@@ -54,12 +54,13 @@ variable "audit_log_retention_locked" {
 }
 
 variable "audit_log_filter" {
-  description = "Log filter for the organization-level audit sink. Defaults to Admin Activity and Data Access, plus System Event."
+  description = "Log filter for the organization-level audit sink. Defaults to Admin Activity, Data Access, System Event and Policy Denied (VPC Service Controls violations, including dry-run, and org policy denials)."
   type        = string
   default     = <<-EOT
     logName:"logs/cloudaudit.googleapis.com%2Factivity" OR
     logName:"logs/cloudaudit.googleapis.com%2Fdata_access" OR
-    logName:"logs/cloudaudit.googleapis.com%2Fsystem_event"
+    logName:"logs/cloudaudit.googleapis.com%2Fsystem_event" OR
+    logName:"logs/cloudaudit.googleapis.com%2Fpolicy"
   EOT
 }
 
