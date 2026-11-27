@@ -130,6 +130,11 @@ run "ncc_and_dns" {
   }
 
   assert {
+    condition     = google_network_connectivity_group.edge.name == "edge" && toset(google_network_connectivity_group.edge.auto_accept[0].auto_accept_projects) == toset(["bnt-dev-net-host", "bnt-prod-net-host", "bnt-qa-net-host"])
+    error_message = "The edge group must auto-accept spokes only from the three net-host projects."
+  }
+
+  assert {
     condition     = google_network_connectivity_hub.main.preset_topology == "STAR"
     error_message = "NCC hub must be STAR so dev, qa and prod don't see each other."
   }

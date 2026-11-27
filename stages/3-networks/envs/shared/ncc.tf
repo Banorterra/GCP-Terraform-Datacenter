@@ -20,6 +20,23 @@ resource "google_network_connectivity_hub" "main" {
   labels          = merge(local.base_labels, { app = "ncc-hub" })
 }
 
+# The edge group exists as soon as the STAR hub does; this resource manages it to auto-accept spokes from the
+# three net-host projects. Each environment root (#19) creates its spoke in its own net-host project, as NCC
+# documents for a VPC in another project than the hub: the spoke is a proposal the hub must accept. Like an AWS
+# Transit Gateway shared with RAM that auto-accepts attachments from the accounts it trusts, and only those.
+resource "google_network_connectivity_group" "edge" {
+  project     = local.net_hub_project
+  hub         = google_network_connectivity_hub.main.id
+  name        = "edge"
+  description = "Environment spokes (dev, qa, prod): they only reach the center group."
+
+  auto_accept {
+    auto_accept_projects = sort(values(local.org.net_host_project_ids))
+  }
+
+  labels = merge(local.base_labels, { app = "ncc-hub" })
+}
+
 # The hub VPC as a VPC spoke of the center group, so the environments reach its subnets (and the DNS
 # peering target) through NCC.
 resource "google_network_connectivity_spoke" "hub_self" {
