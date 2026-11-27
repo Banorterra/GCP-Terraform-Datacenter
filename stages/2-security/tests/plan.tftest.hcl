@@ -61,6 +61,14 @@ run "secrets_never_in_plain_text" {
   }
 
   assert {
+    condition = (
+      keys(google_secret_manager_secret_iam_member.plan_accessor) == ["vpn-psk-onprem/networks"] &&
+      google_secret_manager_secret_iam_member.plan_accessor["vpn-psk-onprem/networks"].member == "serviceAccount:sa-terraform-plan-networks@dc-b-seed-0000.iam.gserviceaccount.com"
+    )
+    error_message = "Only the networks plan SA may read a secret at plan time, and only the VPN key."
+  }
+
+  assert {
     condition     = alltrue([for m in google_secret_manager_secret_iam_member.viewer : m.role == "roles/secretmanager.viewer"])
     error_message = "Groups may see secret metadata only, never the value."
   }

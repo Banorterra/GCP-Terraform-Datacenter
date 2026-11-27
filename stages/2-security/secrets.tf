@@ -50,6 +50,12 @@ locals {
     }
   ]...)
 
+  secret_plan_accessor_pairs = merge([
+    for name, s in var.secrets : {
+      for stage in s.plan_accessors : "${name}/${stage}" => { secret = name, stage = stage }
+    }
+  ]...)
+
   secret_viewer_pairs = {
     for pair in setproduct(keys(var.secrets), var.security_reader_groups) :
     "${pair[0]}/${pair[1]}" => { secret = pair[0], group = pair[1] }
@@ -63,6 +69,17 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   secret_id = google_secret_manager_secret.this[each.value.secret].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.pipeline_sa[each.value.stage]}"
+}
+
+# The read-only plan SA of a stage that reads a secret with a data source (today only the VPN key for
+# 3-networks/envs/shared). Without it, the PR plan of that root fails with a 403 on the data source.
+resource "google_secret_manager_secret_iam_member" "plan_accessor" {
+  for_each = local.secret_plan_accessor_pairs
+
+  project   = local.security_project_id
+  secret_id = google_secret_manager_secret.this[each.value.secret].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.plan_sa[each.value.stage]}"
 }
 
 resource "google_secret_manager_secret_iam_member" "viewer" {
