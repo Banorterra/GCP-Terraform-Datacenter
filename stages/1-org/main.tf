@@ -20,7 +20,18 @@ locals {
   # (<prefix>-c-<domain>). The project ID limit is 30 chars; prefix is 2-3 chars.
   # extra_apis: APIs on top of the minimal set in projects.tf, for the stage that fills the project.
   common_projects = {
-    net-hub = { app = "net-hub", description = "Shared VPC hub, HA VPN to on-prem, DNS.", extra_apis = [] }
+    # Stage 3 fills net-hub: the hub VPC, the simulated on-prem VPC with its VM (a second VPC here, not its
+    # own project, to save a billing slot), the HA VPN between them, Cloud DNS and the NCC hub.
+    net-hub = {
+      app         = "net-hub"
+      description = "Hub VPC, simulated on-prem VPC, HA VPN, DNS and NCC (stage 3 fills it)."
+      extra_apis = [
+        "compute.googleapis.com",
+        "dns.googleapis.com",
+        "networkconnectivity.googleapis.com",
+        "servicenetworking.googleapis.com",
+      ]
+    }
     logging = { app = "logging", description = "Org-level audit sink bucket and log views.", extra_apis = [] }
     security = {
       app         = "security"
