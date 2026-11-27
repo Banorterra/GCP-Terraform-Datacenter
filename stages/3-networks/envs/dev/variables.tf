@@ -1,4 +1,4 @@
-# Stage 3 (envs/dev) variables. Shared ones (org_id, billing_account, environment, regions, labels, state_bucket)
+# Stage 3 (envs/<env>) variables. Shared ones (org_id, billing_account, environment, regions, labels, state_bucket)
 # come from variables_common.tf. The CIDRs come from cidr_plan in 3-networks/shared, so they are not repeated here.
 
 variable "project_prefix" {

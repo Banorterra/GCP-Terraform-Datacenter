@@ -1,7 +1,9 @@
-# Stage 3 (envs/dev): the dev network, attached as a spoke to the hub of envs/shared.
+# Stage 3 (envs/<env>): the environment network, attached as a spoke to the hub of envs/shared. The dev, qa and
+# prod roots are identical; the environment comes from TF_VAR_environment, set by the pipeline from the folder.
 #
-# Runs as sa-terraform-networks. Reads stage 1 (the dev net-host project) and 3-networks/shared (NCC hub, hub VPC,
-# CIDR plan, DNS zones) via terraform_remote_state. Apply envs/shared first: without its state this root cannot plan.
+# Runs as sa-terraform-networks. Reads stage 1 (the net-host project of this environment) and 3-networks/shared
+# (NCC hub, hub VPC, CIDR plan, DNS zones) via terraform_remote_state. Apply envs/shared first: without its state
+# this root cannot plan.
 
 data "terraform_remote_state" "org" {
   backend = "gcs"
