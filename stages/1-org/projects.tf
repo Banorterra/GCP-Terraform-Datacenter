@@ -53,7 +53,8 @@ module "net_host_projects" {
 
   activate_apis = local.project_billing_alias["${each.value}-net-host"] == "none" ? local.free_apis : concat(local.free_apis, [
     "compute.googleapis.com",
-    "dns.googleapis.com", # 3-networks/envs/<env>: private zone and peering zones to the hub
+    "dns.googleapis.com",                 # 3-networks/envs/<env>: private zone and peering zones to the hub
+    "networkconnectivity.googleapis.com", # 3-networks/envs/<env>: the NCC spoke lives in this project
   ])
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
