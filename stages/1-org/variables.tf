@@ -140,3 +140,25 @@ variable "pipeline_sa_project_id" {
     error_message = "pipeline_sa_project_id must be a valid project ID (output seed_project_id of stage 0)."
   }
 }
+
+variable "folder_viewer_groups" {
+  description = "Groups (email, without the group: prefix) with read-only access (roles/viewer) to the common, dev, qa and prod folders and everything in them, and with read access to VPC Service Controls. Spec: humans read, the pipeline changes."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for g in var.folder_viewer_groups : can(regex("^[^@ :]+@[^@ ]+[.][^@ ]+$", g))])
+    error_message = "Every folder_viewer_groups entry must be an email address without a prefix."
+  }
+}
+
+variable "security_reader_groups" {
+  description = "Groups (email, without the group: prefix) that list KMS keys and secrets in the security project (never secret values). Same groups as security_reader_groups in 2-security."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for g in var.security_reader_groups : can(regex("^[^@ :]+@[^@ ]+[.][^@ ]+$", g))])
+    error_message = "Every security_reader_groups entry must be an email address without a prefix."
+  }
+}
