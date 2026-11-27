@@ -19,19 +19,19 @@ test_spoke_subnet_clear_of_onprem_passes if {
 }
 
 test_primary_range_overlapping_onprem_is_denied if {
-	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-dev-subnet-northamerica-south1", "10.200.5.0/24", [])]}
+	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-dev-subnet-northamerica-south1", "172.16.5.0/24", [])]}
 }
 
 test_secondary_range_overlapping_onprem_is_denied if {
-	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-prod-subnet-northamerica-south1", "10.30.0.0/24", ["10.200.0.0/18"])]}
+	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-prod-subnet-northamerica-south1", "10.10.0.0/24", ["172.16.0.0/18"])]}
 }
 
 test_onprem_sim_subnet_is_exempt if {
-	count(deny) == 0 with input as {"resource_changes": [subnet("a", "bnt-c-onprem-subnet-northamerica-south1", "10.200.1.0/24", [])]}
+	count(deny) == 0 with input as {"resource_changes": [subnet("a", "bnt-c-onprem-subnet-northamerica-south1", "172.16.1.0/24", [])]}
 }
 
 test_hub_subnet_overlapping_onprem_is_denied if {
-	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-c-hub-subnet-northamerica-south1", "10.200.9.0/24", [])]}
+	count(deny) == 1 with input as {"resource_changes": [subnet("a", "bnt-c-hub-subnet-northamerica-south1", "172.16.9.0/24", [])]}
 }
 
 test_deleted_subnet_is_ignored if {
