@@ -1,0 +1,323 @@
+# Destroy. Only by hand: Actions > destroy > Run workflow, from main. Never runs on a push.
+#
+# Fields:
+#   stage:   3-networks, 4-projects, 5-workloads, or all (5-workloads, then 4-projects, then 3-networks).
+#            0-bootstrap, 1-org and 2-security are not offered: they are kept (project IDs stay reserved for
+#            30 days after deletion, KMS key rings can never be deleted, the audit log bucket is locked).
+#   env:     dev, qa, prod, or shared (envs/shared, for example the 3-networks hub and HA VPN).
+#   confirm: type "destroy <stage> <env>", for example "destroy all dev". Anything else stops the run.
+#
+#   1. select:  checks the confirmation and builds two lists: the roots to destroy, and the roots that DEPEND on
+#               them and are not being destroyed (later stages of the same env; for shared, also the other envs
+#               of the same stage and every env of the later stages).
+#   2. guard:   each dependent root must already be empty. If one still has resources, nothing is destroyed:
+#               destroy it first, or pick "all".
+#   3. plan:    terraform plan -destroy of each root, shown in the run summary and saved in the state bucket.
+#   4. destroy: one root at a time, later stages first, in the root's GitHub environment (waits for its reviewers:
+#               read the destroy plan in the run summary, then approve). Applies exactly the saved destroy plan
+#               and then checks that the state is empty.
+#
+# To bring it back: Actions > apply > Run workflow. The code is still in main, so the next merge to main will also
+# plan to create it again; do not approve that apply if you want it to stay down.
+name: destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Stage to destroy (all = 5-workloads, then 4-projects, then 3-networks).
+        type: choice
+        default: all
+        options: [all, 3-networks, 4-projects, 5-workloads]
+      env:
+        description: Environment.
+        type: choice
+        default: dev
+        options: [dev, qa, prod, shared]
+      confirm:
+        description: Type "destroy <stage> <env>", for example "destroy all dev".
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Same group as apply.yml: a destroy never runs at the same time as an apply.
+concurrency:
+  group: apply-main
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_org_id: ${{ vars.ORG_ID }}
+  TF_VAR_billing_account: ${{ vars.BILLING_ACCOUNT }}
+  TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
+  TF_VAR_alert_emails: ${{ secrets.ALERT_EMAILS || '[]' }}
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.select.outputs.targets }}
+      any: ${{ steps.select.outputs.any }}
+      dependents: ${{ steps.select.outputs.dependents }}
+      any_dependents: ${{ steps.select.outputs.any_dependents }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: select
+        env:
+          STAGE: ${{ inputs.stage }}
+          ENV_NAME: ${{ inputs.env }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          # The stage service accounts only accept tokens from main (Workload Identity condition in 0-bootstrap).
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Run destroy from main (this run is on ${GITHUB_REF})."; exit 1
+          fi
+          expected="destroy ${STAGE} ${ENV_NAME}"
+          if [[ "$CONFIRM" != "$expected" ]]; then
+            echo "::error::Confirmation does not match. Type exactly: ${expected}"; exit 1
+          fi
+
+          all="$(bash scripts/changed-roots.sh --all)"
+          # Every root of stages 3 to 5, with "shared" for roots without an environment.
+          roots="$(jq -c '[.include[] | select(.stage >= "3") | . + {scope: (if .env == "" then "shared" else .env end)}]' <<<"$all")"
+
+          targets="$(jq -c --arg stage "$STAGE" --arg env "$ENV_NAME" '
+            [.[] | select(($stage == "all" or .stage == $stage) and .scope == $env)]' <<<"$roots")"
+
+          # Roots that depend on a target and are not targets themselves.
+          dependents="$(jq -c --argjson t "$targets" '
+            [.[] as $r | select(($t | map(.dir) | index($r.dir)) == null)
+              | select(any($t[];
+                  ($r.stage > .stage and (.scope == "shared" or $r.scope == .scope))
+                  or (.scope == "shared" and $r.stage == .stage)))
+              | $r]' <<<"$roots")"
+
+          echo "Roots to destroy: ${targets}"
+          echo "Dependent roots (must be empty): ${dependents}"
+          {
+            echo "targets={\"include\":${targets}}"
+            echo "any=$(jq 'length > 0' <<<"$targets")"
+            echo "dependents={\"include\":${dependents}}"
+            echo "any_dependents=$(jq 'length > 0' <<<"$dependents")"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### destroy ${STAGE} ${ENV_NAME}"
+            echo "Roots to destroy: $(jq -r 'map("`" + .dir + "`") | join(", ") | if . == "" then "none" else . end' <<<"$targets")"
+            echo
+            echo "Roots that must already be empty: $(jq -r 'map("`" + .dir + "`") | join(", ") | if . == "" then "none" else . end' <<<"$dependents")"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$(jq 'length' <<<"$targets")" -eq 0 ]]; then
+            echo "::error::No root matches ${STAGE} ${ENV_NAME} in this repository."; exit 1
+          fi
+
+  guard:
+    needs: select
+    if: needs.select.outputs.any_dependents == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.dependents) }}
+    steps:
+      # Each stage SA can read its own state prefix, so the check logs in as the dependent root's own SA.
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Check that the dependent root is empty
+        env:
+          # The backend prefix is the path under stages/ (see backend.tf), and the workspace is "default".
+          STATE_OBJECT: gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}${{ matrix.env != '' && format('/{0}', matrix.env) || '' }}/default.tfstate
+        run: |
+          if gcloud storage cat "$STATE_OBJECT" > state.json 2> err.txt; then
+            count="$(jq '[.resources[]? | select(.mode == "managed")] | length' state.json)"
+          elif grep -qiE 'matched no objects|not found|404' err.txt; then
+            count=0   # never applied
+          else
+            cat err.txt; exit 1
+          fi
+          echo "${{ matrix.dir }}: ${count} managed resources"
+          if [[ "$count" -gt 0 ]]; then
+            echo "::error::${{ matrix.dir }} still has ${count} resources and depends on what you want to destroy. Destroy it first, or pick stage all."
+            echo "### Blocked: \`${{ matrix.dir }}\` still has ${count} resources" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+  plan:
+    needs: [select, guard]
+    if: >-
+      always() && needs.select.result == 'success' && needs.select.outputs.any == 'true'
+      && (needs.guard.result == 'success' || needs.guard.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.targets) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: terraform plan -destroy
+        id: plan
+        run: |
+          set +e
+          terraform plan -destroy -input=false -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan > plan.txt 2>&1
+          code=$?
+          set -e
+          cat plan.txt
+          # -detailed-exitcode: 0 = nothing to destroy, 1 = error, 2 = resources to destroy
+          if [[ $code -eq 1 ]]; then exit 1; fi
+          echo "changes=$([[ $code -eq 2 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "id=$(tr '/' '_' <<<"${{ matrix.dir }}")" >> "$GITHUB_OUTPUT"
+
+      - name: Plan to run summary
+        if: always() && steps.plan.outcome != 'skipped'
+        run: |
+          {
+            if [[ '${{ steps.plan.outcome }}' == 'failure' ]]; then status='PLAN FAILED, nothing is destroyed'
+            elif [[ '${{ steps.plan.outputs.changes }}' == 'true' ]]; then status='WILL BE DESTROYED, waits for approval'
+            else status='already empty'; fi
+            echo "### \`${{ matrix.dir }}\`: ${status}"
+            if [[ '${{ steps.plan.outputs.changes }}' == 'true' || '${{ steps.plan.outcome }}' == 'failure' ]]; then
+              echo '<details><summary>Destroy plan</summary>'; echo; echo '```'
+              tail -c 60000 plan.txt
+              echo '```'; echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save plan for the destroy job
+        if: steps.plan.outputs.changes == 'true'
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+        run: |
+          gcloud storage cp tfplan \
+            "gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/destroy-${{ steps.plan.outputs.id }}.tfplan"
+          jq -cn --argjson m "$MATRIX" --arg id '${{ steps.plan.outputs.id }}' '$m + {id: $id}' \
+            > "$RUNNER_TEMP/changes.json"
+
+      - name: Mark root as changed
+        if: steps.plan.outputs.changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: destroy-${{ steps.plan.outputs.id }}
+          path: ${{ runner.temp }}/changes.json
+          retention-days: 1
+
+  collect:
+    needs: plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect.outputs.matrix }}
+      any: ${{ steps.collect.outputs.any }}
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # nothing to destroy means no artifacts
+        with:
+          pattern: destroy-*
+          path: changes
+
+      - id: collect
+        run: |
+          mkdir -p changes
+          # Later stages first: 5-workloads, then 4-projects, then 3-networks.
+          matrix="$(find changes -name changes.json -exec cat {} + 2>/dev/null | jq -cs '{include: (sort_by(.stage) | reverse)}')"
+          echo "Roots to destroy, in order: ${matrix}"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq '.include | length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+
+  destroy:
+    needs: collect
+    if: needs.collect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.gh_env }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: true   # if a later stage fails to destroy, the earlier ones it uses are left alone
+      max-parallel: 1   # one root at a time, in the order collect gives
+      matrix: ${{ fromJSON(needs.collect.outputs.matrix) }}
+    env:
+      TF_VAR_environment: ${{ matrix.env != '' && matrix.env || 'shared' }}
+      PLAN_OBJECT: gs://${{ vars.TF_STATE_BUCKET }}/${{ matrix.stage }}/_plans/${{ github.run_id }}/destroy-${{ matrix.id }}.tfplan
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GCP as the stage service account
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars[format('TF_SA_{0}', matrix.sa_key)] }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Read Terraform version
+        id: tfver
+        working-directory: .
+        run: echo "version=$(cat .terraform-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tfver.outputs.version }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Fetch the approved destroy plan
+        run: gcloud storage cp "$PLAN_OBJECT" tfplan
+
+      - name: terraform apply (the saved destroy plan, nothing else)
+        run: terraform apply -input=false -no-color -lock-timeout=5m tfplan
+
+      - name: Check that nothing is left in the state
+        run: |
+          left="$(terraform state list | grep -v '^data\.' | grep -v '\.data\.' || true)"
+          if [[ -n "$left" ]]; then
+            echo "::error::Resources still in the state of ${{ matrix.dir }}:"; echo "$left"; exit 1
+          fi
+          echo "### \`${{ matrix.dir }}\`: destroyed, state is empty" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete the saved plan
+        if: always()
+        run: gcloud storage rm "$PLAN_OBJECT" || true

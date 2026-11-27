@@ -47,3 +47,7 @@ project_billing = {
   "prod-net-host" = "none"
   "c-onprem-sim"  = "none"
 }
+
+# Read-only access for people (spec: groups only, humans read and the pipeline changes).
+folder_viewer_groups   = ["gcp-organization-admins@banorterra.com"]
+security_reader_groups = ["grp-seguridad@banorterra.com"]

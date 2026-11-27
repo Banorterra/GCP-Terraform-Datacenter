@@ -112,8 +112,35 @@ jobs:
           terraform_version: ${{ steps.tfver.outputs.version }}
           terraform_wrapper: false
 
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # A root that was never applied has no state yet. The GCS backend then tries to create an empty state (and
+      # its lock) during init/plan, which the read-only plan SA cannot do. For such a root, plan against an empty
+      # LOCAL state instead: the result is the same (everything to create), and the first apply, run as the stage
+      # SA, creates the real state in the bucket. terraform_remote_state of earlier stages still reads the bucket.
+      - name: Check whether the root already has state
+        id: state
+        run: |
+          prefix="$(sed -nE 's/^[[:space:]]*prefix[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' backend.tf)"
+          object="gs://${{ vars.TF_STATE_BUCKET }}/${prefix}/default.tfstate"
+          if gcloud storage objects describe "$object" > /dev/null 2> err.txt; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          elif grep -qiE '404|not found|matched no objects' err.txt; then
+            echo "No state at ${object}: new root, planning against an empty local state."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          else
+            cat err.txt; exit 1
+          fi
+
       - name: terraform init
-        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+        run: |
+          if [[ '${{ steps.state.outputs.new }}' == 'true' ]]; then
+            # *_override.tf is gitignored; this file only exists on the runner.
+            printf 'terraform {\n  backend "local" {}\n}\n' > backend_override.tf
+            terraform init -input=false
+          else
+            terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          fi
 
       - name: terraform plan
         id: plan
@@ -136,6 +163,7 @@ jobs:
         env:
           ROOT: ${{ matrix.dir }}
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          NEW_ROOT: ${{ steps.state.outputs.new }}
         with:
           script: |
             const fs = require('fs');
@@ -149,6 +177,7 @@ jobs:
             const body = [
               marker,
               `### Terraform plan: \`${dir}\` (${process.env.PLAN_OUTCOME})`,
+              process.env.NEW_ROOT === 'true' ? '_New root without state yet: planned against an empty state. The first apply after merge creates it._' : '',
               '<details><summary>Plan</summary>', '', '```', plan || '(no output)', '```', '</details>',
               policy ? ['', '**Policies (conftest)**', '```', policy, '```'].join('\n') : '',
               '', `[Job log](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
