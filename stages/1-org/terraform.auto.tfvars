@@ -44,3 +44,7 @@ project_billing = {
   "qa-net-host"   = "none"
   "prod-net-host" = "none"
 }
+
+# Read-only access for people (spec: groups only, humans read and the pipeline changes).
+folder_viewer_groups   = ["gcp-organization-admins@banorterra.com"]
+security_reader_groups = ["grp-seguridad@banorterra.com"]
