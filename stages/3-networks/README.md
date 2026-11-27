@@ -16,7 +16,9 @@ The hub itself (shared resources) needs its own root: add `envs/shared` when you
 | Subnet and on-prem ranges | Example CIDRs | The client's signed IP plan; no overlap with on-prem |
 
 ## Checks to add
-- A Conftest rule on the plan using `net.cidr_intersects` that rejects any subnet overlapping `onprem_cidrs`.
+- Done: `policies/network.rego` rejects any subnet (primary or secondary range) overlapping the on-prem range
+  (`net.cidr_intersects`). Its `onprem_cidrs` is the sandbox plan: update it with the client's signed plan.
+  Tests: `conftest verify --policy policies`.
 - Sprint rule: Sprint 4 (compute and data) does not start until this stage proves a prod VM reaches an on-prem host by private IP and resolves its DNS.
 
 ## Sprint 4 gate
