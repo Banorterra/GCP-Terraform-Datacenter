@@ -12,6 +12,16 @@ data "google_secret_manager_secret_version" "vpn_psk" {
 }
 
 locals {
+  # Cloud DNS forwarding source range (Google-fixed).
+  cloud_dns_forwarding_range = "35.199.192.0/19"
+
+  hub_advertised_ranges = [
+    { range = var.cidr_plan.dev.block, description = "dev spoke (NCC)" },
+    { range = var.cidr_plan.qa.block, description = "qa spoke (NCC)" },
+    { range = var.cidr_plan.prod.block, description = "prod spoke (NCC)" },
+    { range = local.cloud_dns_forwarding_range, description = "Cloud DNS forwarding" },
+  ]
+
   bgp_tunnels = {
     "0" = { hub_ip = "169.254.10.1/30", hub_peer = "169.254.10.2", onprem_ip = "169.254.10.2/30", onprem_peer = "169.254.10.1" }
     "1" = { hub_ip = "169.254.10.5/30", hub_peer = "169.254.10.6", onprem_ip = "169.254.10.6/30", onprem_peer = "169.254.10.5" }
@@ -33,10 +43,23 @@ resource "google_compute_router" "hub" {
   network = google_compute_network.hub.id
   region  = var.primary_region
 
+  # ALL_SUBNETS only covers the hub VPC's own subnets. On-prem also needs:
+  # - the spoke blocks (dev/qa/prod): NCC does not advertise VPC spoke subnets to on-prem by itself, and
+  #   without them the replies to a spoke VM have no route back;
+  # - 35.199.192.0/19: Cloud DNS sends the forwarded banorterra.local queries from this range, so the
+  #   dnsmasq answers must route back over the VPN.
   bgp {
     asn               = var.cidr_plan.hub.router_asn
     advertise_mode    = "CUSTOM"
     advertised_groups = ["ALL_SUBNETS"]
+
+    dynamic "advertised_ip_ranges" {
+      for_each = local.hub_advertised_ranges
+      content {
+        range       = advertised_ip_ranges.value.range
+        description = advertised_ip_ranges.value.description
+      }
+    }
   }
 }
 
@@ -96,6 +119,22 @@ resource "google_compute_router" "onprem" {
     asn               = var.cidr_plan.onprem.router_asn
     advertise_mode    = "CUSTOM"
     advertised_groups = ["ALL_SUBNETS"]
+  }
+}
+
+# The on-prem VM has no external IP (org policy), so its startup script needs NAT to reach the Debian
+# mirrors (apt-get install dnsmasq). Like a NAT Gateway for a private subnet in AWS.
+resource "google_compute_router_nat" "onprem" {
+  project                            = local.onprem_sim_project
+  name                               = "${var.project_prefix}-c-onprem-nat"
+  router                             = google_compute_router.onprem.name
+  region                             = var.primary_region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
   }
 }
 

@@ -1,7 +1,8 @@
 # Stage 3: envs/shared
 
 Root compartido de la etapa 3. Crea el hub (VPC, HA VPN, NCC, DNS) y la simulación de on-premise
-(`onprem-sim` VPC + VM Linux). Los roots por entorno (`envs/{dev,qa,prod}/`) se conectan a lo que
+(una segunda VPC con una VM Linux, dentro del mismo proyecto `net-hub` para no gastar un lugar de
+billing). Los roots por entorno (`envs/{dev,qa,prod}/`) se conectan a lo que
 este root expone.
 
 Corre como `sa-terraform-networks`, prefijo de state `3-networks/shared`. Lee stage 1 (project IDs)
@@ -17,11 +18,12 @@ mandando tráfico.
 | HA VPN (4 túneles: 2 por lado) | **~$146** | $0.05/h/túnel × 4 × 730h. Es el 95% del costo |
 | VM `onprem-sim` (`e2-micro` Querétaro) | ~$7 | Querétaro no tiene free-tier |
 | Boot disk 10 GB pd-balanced | ~$1 | |
+| Cloud NAT de on-prem (1 VM) | ~$1 | $0.0014/h por VM; solo para el `apt-get` del arranque |
 | Cloud DNS (4 zonas) | ~$0.80 | $0.20/zona/mes |
-| NCC VPC spoke | ~$0 | $0.03/GB, tráfico sandbox negligible |
+| NCC: VPC spoke del hub + hybrid spoke de la VPN | ~$0 | Se cobra por GB; tráfico sandbox negligible |
 | Flow logs 50% | ~$1 | Mínimo sin tráfico |
 | Resto (VPC, subnets, router, IP interna, firewall) | $0 | Gratis |
-| **Total** | **~$155/mes** | |
+| **Total** | **~$156/mes** | |
 
 ### Pausar cuando no se usa
 
@@ -64,7 +66,7 @@ Outputs que consumen los spokes (`envs/{dev,qa,prod}`):
 ## Cómo correrlo
 
 ### Pre-requisitos
-- Stage 1 aplicado con el proyecto `onprem-sim` creado y con billing (hoy `project_billing."c-onprem-sim" = "none"`; cambiar a un alias real).
+- Stage 1 aplicado con las APIs de red en `net-hub` (compute, dns, networkconnectivity, servicenetworking) y `roles/compute.instanceAdmin.v1` para `sa-terraform-networks` en `net-hub` (PR #23).
 - Stage 2 aplicado con el secret `vpn-psk-onprem` en Secret Manager.
 
 ### Vía pipeline (recomendado)

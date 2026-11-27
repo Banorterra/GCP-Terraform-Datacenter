@@ -1,5 +1,5 @@
-# Simulated on-premise datacenter. Its VPC is NOT attached to the NCC hub; it only reaches GCP
-# through the HA VPN (ha_vpn.tf). A single Linux VM with an internal IP answers pings and resolves
+# Simulated on-premise datacenter: a second VPC inside net-hub (no project of its own, to save a billing
+# slot). Its VPC is NOT attached to the NCC hub; it only reaches GCP through the HA VPN (ha_vpn.tf). A single Linux VM with an internal IP answers pings and resolves
 # the private zone from the hub side; that is the gate the spec requires to start Sprint 4.
 
 resource "google_compute_network" "onprem" {
@@ -36,7 +36,8 @@ resource "google_compute_address" "onprem_host" {
   purpose      = "GCE_ENDPOINT"
 }
 
-# Firewall rule: allow DNS (udp/tcp 53) from the GCP side to the on-prem resolver.
+# Firewall rule: allow DNS (udp/tcp 53) from the GCP side to the on-prem resolver. Queries forwarded by
+# the hub's Cloud DNS forwarding zone arrive from 35.199.192.0/19, not from the hub subnet.
 resource "google_compute_firewall" "onprem_allow_dns_from_gcp" {
   project   = local.onprem_sim_project
   network   = google_compute_network.onprem.name
@@ -45,6 +46,7 @@ resource "google_compute_firewall" "onprem_allow_dns_from_gcp" {
   priority  = 1050
 
   source_ranges = [
+    local.cloud_dns_forwarding_range,
     var.cidr_plan.hub.block,
     var.cidr_plan.dev.block,
     var.cidr_plan.qa.block,

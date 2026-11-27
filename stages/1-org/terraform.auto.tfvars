@@ -35,9 +35,7 @@ extra_billing_accounts = {
 
 # main (Adrián's account) already pays for seed, cicd and c-net-hub: it has no free slot left.
 # qa and prod network hosts stay without billing until Hervey's account is added; backup is not used
-# until DR. c-onprem-sim needs billing to run the Linux VM used in the HA VPN test (Sprint 4 gate):
-# set it to a real alias as soon as a slot opens, otherwise only the free APIs activate and stage 3
-# cannot create the VM.
+# until DR.
 project_billing = {
   "c-logging"     = "jesus"
   "c-security"    = "jesus"
@@ -45,7 +43,6 @@ project_billing = {
   "c-backup"      = "none"
   "qa-net-host"   = "none"
   "prod-net-host" = "none"
-  "c-onprem-sim"  = "none"
 }
 
 # Read-only access for people (spec: groups only, humans read and the pipeline changes).

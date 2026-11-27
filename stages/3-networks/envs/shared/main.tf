@@ -27,8 +27,11 @@ locals {
   org      = data.terraform_remote_state.org.outputs
   security = data.terraform_remote_state.security.outputs
 
-  net_hub_project    = local.org.common_project_ids["net-hub"]
-  onprem_sim_project = local.org.common_project_ids["onprem-sim"]
+  net_hub_project = local.org.common_project_ids["net-hub"]
+  # The simulated on-prem network is a second VPC inside net-hub, not its own project: every free-trial
+  # billing account links at most 3 projects (ADR 0007) and a separate project would use a slot.
+  # Its VPC is still isolated: it only reaches the hub VPC through the HA VPN.
+  onprem_sim_project = local.net_hub_project
 
   base_labels = merge(var.labels, {
     env        = var.environment

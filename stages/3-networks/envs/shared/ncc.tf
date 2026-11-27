@@ -1,26 +1,58 @@
-# Network Connectivity Center hub. Each spoke root (envs/dev|qa|prod) adds its VPC as a spoke
-# through its own terraform_remote_state of this root. The hub itself has no traffic policy;
-# spoke-to-spoke transit is left OFF (spec: "sin conectividad directa entre entornos").
+# Network Connectivity Center hub: the GCP equivalent of an AWS Transit Gateway. Each spoke root
+# (envs/dev|qa|prod) attaches its VPC through its own terraform_remote_state of this root.
+#
+# STAR topology (spec: "sin conectividad directa entre entornos"):
+# - center group: the hub VPC and the HA VPN tunnels to on-prem.
+# - edge group: the dev, qa and prod VPCs (ncc_spoke_group in the spoke roots).
+# Edge spokes only exchange routes with the center, never with each other. Like a TGW route table for
+# the environments that only propagates the VPN and the central VPC attachments.
+# The topology can only be chosen when the hub is created.
 
-resource "google_network_connectivity_hub" "main" {
-  project     = local.net_hub_project
-  name        = "${var.project_prefix}-c-ncc-hub"
-  description = "Landing-zone hub. Spokes attach from their env roots."
-  labels      = merge(local.base_labels, { app = "ncc-hub" })
+locals {
+  ncc_center_group = "${google_network_connectivity_hub.main.id}/groups/center"
 }
 
-# The hub VPC itself is a VPC spoke on the hub so routes it learns via BGP from on-prem get
-# re-advertised to the other spokes. (If we did not add the hub VPC, spoke VPCs would not see
-# the on-prem ranges.)
+resource "google_network_connectivity_hub" "main" {
+  project         = local.net_hub_project
+  name            = "${var.project_prefix}-c-ncc-hub"
+  description     = "Landing-zone hub (STAR). Spokes attach from their env roots."
+  preset_topology = "STAR"
+  labels          = merge(local.base_labels, { app = "ncc-hub" })
+}
+
+# The hub VPC as a VPC spoke of the center group, so the environments reach its subnets (and the DNS
+# peering target) through NCC.
 resource "google_network_connectivity_spoke" "hub_self" {
   project  = local.net_hub_project
   name     = "${var.project_prefix}-c-ncc-spoke-hub"
   location = "global"
   hub      = google_network_connectivity_hub.main.id
+  group    = local.ncc_center_group
 
   linked_vpc_network {
     uri                   = google_compute_network.hub.self_link
     exclude_export_ranges = []
+  }
+
+  labels = merge(local.base_labels, { app = "ncc-hub" })
+}
+
+# The two HA VPN tunnels of the hub as a hybrid spoke. Without it, the on-prem routes the hub's Cloud
+# Router learns by BGP stay in the hub VPC: VPC spokes only import dynamic routes that a hybrid spoke
+# exports to the hub. No site-to-site data transfer (that is for on-prem to on-prem through Google),
+# so it can sit in the center group. The tunnels and their router are in the hub's project, as NCC
+# requires.
+resource "google_network_connectivity_spoke" "onprem_vpn" {
+  project  = local.net_hub_project
+  name     = "${var.project_prefix}-c-ncc-spoke-onprem-vpn"
+  location = var.primary_region
+  hub      = google_network_connectivity_hub.main.id
+  group    = local.ncc_center_group
+
+  linked_vpn_tunnels {
+    uris                       = [for t in google_compute_vpn_tunnel.hub : t.self_link]
+    site_to_site_data_transfer = false
+    include_import_ranges      = ["ALL_IPV4_RANGES"]
   }
 
   labels = merge(local.base_labels, { app = "ncc-hub" })

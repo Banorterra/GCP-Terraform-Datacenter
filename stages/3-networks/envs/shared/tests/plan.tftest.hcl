@@ -8,11 +8,10 @@ override_data {
   values = {
     outputs = {
       common_project_ids = {
-        "net-hub"    = "bnt-c-net-hub"
-        "logging"    = "bnt-c-logging"
-        "security"   = "bnt-c-security"
-        "backup"     = "bnt-c-backup"
-        "onprem-sim" = "bnt-c-onprem-sim"
+        "net-hub"  = "bnt-c-net-hub"
+        "logging"  = "bnt-c-logging"
+        "security" = "bnt-c-security"
+        "backup"   = "bnt-c-backup"
       }
       net_host_project_ids = { dev = "bnt-dev-net-host", qa = "bnt-qa-net-host", prod = "bnt-prod-net-host" }
       folder_ids           = { common = "folders/111", dev = "folders/222", qa = "folders/333", prod = "folders/444" }
@@ -73,6 +72,21 @@ run "hub_and_onprem" {
     condition     = length(google_compute_instance.onprem_host.network_interface[0].access_config) == 0
     error_message = "On-prem VM must not have an external IP."
   }
+
+  assert {
+    condition     = google_compute_network.onprem.project == "bnt-c-net-hub" && google_compute_instance.onprem_host.project == "bnt-c-net-hub"
+    error_message = "The simulated on-prem VPC and VM live in net-hub (no project of their own)."
+  }
+
+  assert {
+    condition     = google_compute_router_nat.onprem.router == google_compute_router.onprem.name
+    error_message = "On-prem needs Cloud NAT so the VM's startup script can install dnsmasq."
+  }
+
+  assert {
+    condition     = contains(google_compute_firewall.onprem_allow_dns_from_gcp.source_ranges, "35.199.192.0/19")
+    error_message = "On-prem DNS must accept the Cloud DNS forwarding range."
+  }
 }
 
 run "ha_vpn_topology" {
@@ -92,6 +106,14 @@ run "ha_vpn_topology" {
     condition     = length(google_compute_router_peer.hub) == 2 && length(google_compute_router_peer.onprem) == 2
     error_message = "Two BGP peers on each side."
   }
+
+  assert {
+    condition = alltrue([
+      for r in ["10.10.0.0/16", "10.20.0.0/16", "10.30.0.0/16", "35.199.192.0/19"] :
+      contains([for a in google_compute_router.hub.bgp[0].advertised_ip_ranges : a.range], r)
+    ])
+    error_message = "The hub router must advertise the spoke blocks and the Cloud DNS forwarding range to on-prem."
+  }
 }
 
 run "ncc_and_dns" {
@@ -100,6 +122,16 @@ run "ncc_and_dns" {
   assert {
     condition     = google_network_connectivity_hub.main.name == "bnt-c-ncc-hub"
     error_message = "NCC hub name must follow the prefix convention."
+  }
+
+  assert {
+    condition     = google_network_connectivity_hub.main.preset_topology == "STAR"
+    error_message = "NCC hub must be STAR so dev, qa and prod don't see each other."
+  }
+
+  assert {
+    condition     = length(google_network_connectivity_spoke.onprem_vpn.linked_vpn_tunnels[0].uris) == 2 && google_network_connectivity_spoke.onprem_vpn.linked_vpn_tunnels[0].site_to_site_data_transfer == false
+    error_message = "Both hub VPN tunnels must be a hybrid spoke, without site-to-site data transfer."
   }
 
   assert {

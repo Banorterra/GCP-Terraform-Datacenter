@@ -27,7 +27,7 @@ if [[ "${1:-}" == "-y" ]]; then
   APPROVE_FLAG="-auto-approve"
 else
   cat <<EOF
-About to destroy stage 3 envs/shared (HA VPN, hub VPC, onprem-sim VPC + VM, NCC, DNS).
+About to destroy stage 3 envs/shared (HA VPN, hub VPC, simulated on-prem VPC + VM, NCC, DNS).
 Stages 0/1/2 and the env spokes are NOT touched.
 Impersonating: ${NETWORKS_SA}
 Press Enter to continue, Ctrl-C to abort.
