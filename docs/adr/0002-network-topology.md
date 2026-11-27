@@ -37,25 +37,30 @@ cover the perimeter requirements without running appliances.
 - **NCC hub in STAR topology.** With the default MESH, every VPC spoke exchanges subnet routes with every other one,
   so dev, qa and prod would reach each other. The hub uses `preset_topology = "STAR"`: the hub VPC is a spoke in the
   `center` group, and each environment VPC is a spoke in the `edge` group (`ncc_spoke_group` in
-  `modules/network-spoke`). Edges only reach the center. `preset_topology` can only be set when the hub is created.
-- **One root per environment.** `3-networks/envs/shared` (hub VPC, HA VPN, NCC hub, DNS hub, onprem-sim) and
+  `modules/network-spoke`, by default the `ncc_edge_group` output of `envs/shared`). The two HA VPN tunnels are a
+  hybrid spoke in the `center` group, so the edges import the on-prem routes. Edges only reach the center. `preset_topology` can only be set when the hub is created.
+- **One root per environment.** `3-networks/envs/shared` (hub VPC, HA VPN, NCC hub, DNS hub, simulated on-prem) and
   `envs/{dev,qa,prod}`, which all call `modules/network-spoke`: a Shared VPC host VPC in the environment's
   `net-host` project, one subnet (Private Google Access, 50% flow logs, GKE secondary ranges), Cloud NAT, the NCC
-  spoke, DNS and base firewall rules. CIDRs come from `cidr_plan` in `envs/shared` (sandbox plan until the client
-  signs one); `policies/network.rego` rejects any subnet that overlaps on-prem.
-- **Simulated on-prem.** There is no client router in the sandbox, so `envs/shared` builds a separate VPC in the
-  `c-onprem-sim` project with its own HA VPN gateway and Cloud Router (BGP, ASN 64513) and a small VM that answers
-  DNS (`banorterra.local.`) and HTTP. Swapping it for the real datacenter means replacing the peer side of the
+  spoke, DNS and base firewall rules. CIDRs come from `cidr_plan` in `envs/shared`, the plan of the team's diagrams
+  (hub 10.0.0.0/22, prod 10.10.0.0/16, dev 10.20.0.0/16, qa 10.30.0.0/16, on-prem 172.16.0.0/16) until the client
+  signs one; `policies/network.rego` rejects any subnet that overlaps on-prem.
+- **Simulated on-prem.** There is no client router in the sandbox, so `envs/shared` builds a second VPC inside
+  `net-hub` (not its own project: free-trial billing accounts link only 3 projects, ADR 0007) with its own HA VPN
+  gateway and Cloud Router (BGP, ASN 64513) and a small VM that answers
+  DNS (`banorterra.local.`) and HTTP, with Cloud NAT so its startup script can install packages. Swapping it for the real datacenter means replacing the peer side of the
   tunnels with the client's gateway (`peer_external_gateway`) and its ASN.
 - **DNS.** The hub owns `gcp.banorterra.internal.` and a forwarding zone for `banorterra.local.` that sends queries
   to on-prem over the VPN. Each environment has its own private zone (`<env>.gcp.banorterra.internal.`) and peering
   zones to the hub for both domains. Forwarded queries come from Cloud DNS's range `35.199.192.0/19`: the hub's
-  Cloud Router must advertise it to on-prem and the on-prem firewall must allow it on port 53.
+  Cloud Router advertises it to on-prem, together with the dev, qa and prod blocks, and the on-prem firewall allows
+  it on port 53.
 - **Sprint 4 gate.** `enable_gate_vm` in an environment root creates a test VM that resolves the on-prem host,
   pings it and fetches it over HTTP, and prints the result to its serial console (stage 3 README).
 
 ### Still open
-- On-prem routes reaching the environment spokes: confirm on the first apply. If the routes the hub VPC learns over
-  BGP do not reach the edge spokes, attach the HA VPN tunnels to the hub as a hybrid spoke.
+- On-prem routes reaching the environment spokes through the VPN hybrid spoke: confirm on the first apply.
+- The environment spokes are created in the hub's project and link a VPC of another project (`<env>-net-host`).
+  NCC documents the other direction (spoke in the VPC's project, accepted by the hub admin); confirm with dev first.
 - Hierarchical firewall policies and secure tags (spec: allow by secure tag). Today the rules are VPC firewall rules
   with network tags. Secure tags need `roles/resourcemanager.tagAdmin` for a stage account, a stage 0 change.

@@ -25,7 +25,7 @@ variable "flow_logs_sampling" {
 }
 
 variable "ncc_spoke_group" {
-  description = "NCC group of the spoke: the hub's edge group when the hub uses a STAR topology; null = default group."
+  description = "NCC group of the spoke. null = the STAR hub's edge group (output ncc_edge_group of 3-networks/shared)."
   type        = string
   default     = null
 }

@@ -45,7 +45,7 @@ module "spoke" {
 
   hub_project_id  = local.shared.hub_project_id
   ncc_hub_id      = local.shared.ncc_hub_id
-  ncc_spoke_group = var.ncc_spoke_group
+  ncc_spoke_group = coalesce(var.ncc_spoke_group, local.shared.ncc_edge_group)
   hub_network_id  = local.shared.hub_vpc_id
 
   dns_zone         = "${local.env}.${local.shared.hub_dns_zone}"

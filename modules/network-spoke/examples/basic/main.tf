@@ -45,7 +45,7 @@ module "spoke" {
   hub_network_id   = var.hub_network_id
   dns_zone         = "dev.example.internal."
   peered_dns_zones = ["example.internal.", "corp.example.local."]
-  onprem_cidrs     = ["10.200.0.0/16"]
+  onprem_cidrs     = ["172.16.0.0/16"]
   labels           = { env = "dev" }
 }
 

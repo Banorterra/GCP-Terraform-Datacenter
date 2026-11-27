@@ -17,7 +17,7 @@ variables {
     services = "10.10.128.0/20"
   }
   peered_dns_zones = ["gcp.banorterra.internal.", "banorterra.local."]
-  onprem_cidrs     = ["10.200.0.0/16"]
+  onprem_cidrs     = ["172.16.0.0/16"]
 }
 
 run "subnet_follows_the_spec" {
