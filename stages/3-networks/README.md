@@ -18,3 +18,15 @@ The hub itself (shared resources) needs its own root: add `envs/shared` when you
 ## Checks to add
 - A Conftest rule on the plan using `net.cidr_intersects` that rejects any subnet overlapping `onprem_cidrs`.
 - Sprint rule: Sprint 4 (compute and data) does not start until this stage proves a prod VM reaches an on-prem host by private IP and resolves its DNS.
+
+## Sprint 4 gate
+Each environment root can create a test VM: set `enable_gate_vm = true` in `envs/prod/terraform.auto.tfvars` (PR),
+let the pipeline apply it, then read its result. It prints three `GATE` lines (DNS of `host.banorterra.local`,
+ping to its private IP, HTTP 200) to the serial console:
+
+```bash
+gcloud compute instances get-serial-port-output bnt-prod-gate-vm --zone northamerica-south1-a \
+  --project bnt-prod-net-host | grep GATE
+```
+
+Three `OK` lines pass the gate. Set `enable_gate_vm = false` again afterwards.

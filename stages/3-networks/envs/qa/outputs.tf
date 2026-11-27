@@ -34,3 +34,8 @@ output "dns_zone_name" {
   description = "Name of the private DNS zone of this environment."
   value       = module.spoke.dns_zone_name
 }
+
+output "gate_vm_name" {
+  description = "Name of the Sprint 4 gate VM (null when enable_gate_vm is false)."
+  value       = module.spoke.gate_vm_name
+}

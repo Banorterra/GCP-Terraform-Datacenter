@@ -75,3 +75,31 @@ run "rejects_unknown_env" {
 
   expect_failures = [var.env]
 }
+
+run "gate_vm_is_off_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(google_compute_instance.gate) == 0
+    error_message = "The gate VM must not exist unless enable_gate_vm is true."
+  }
+}
+
+run "gate_vm_is_private_and_shielded" {
+  command = plan
+
+  variables {
+    enable_gate_vm   = true
+    gate_target_host = "host.banorterra.local"
+  }
+
+  assert {
+    condition     = length(google_compute_instance.gate[0].network_interface[0].access_config) == 0
+    error_message = "The gate VM must not have an external IP."
+  }
+
+  assert {
+    condition     = google_compute_instance.gate[0].shielded_instance_config[0].enable_secure_boot == true
+    error_message = "The gate VM must be a Shielded VM."
+  }
+}

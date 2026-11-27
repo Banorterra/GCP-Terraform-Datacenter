@@ -29,3 +29,9 @@ variable "ncc_spoke_group" {
   type        = string
   default     = null
 }
+
+variable "enable_gate_vm" {
+  description = "Create the Sprint 4 gate VM in this environment (spec: a prod VM reaches on-prem by private IP and resolves its DNS). Turn on for the test, then off."
+  type        = bool
+  default     = false
+}

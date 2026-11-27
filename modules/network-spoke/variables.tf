@@ -117,3 +117,21 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_gate_vm" {
+  description = "Create the Sprint 4 gate VM: a small VM that, at boot, resolves gate_target_host over DNS, pings it and fetches http://<host>/, and prints GATE: lines. Turn on for the test or the demo only."
+  type        = bool
+  default     = false
+}
+
+variable "gate_target_host" {
+  description = "On-prem host the gate VM tests (e.g. host.banorterra.local). Required when enable_gate_vm is true."
+  type        = string
+  default     = ""
+}
+
+variable "gate_vm_machine_type" {
+  description = "Machine type of the gate VM."
+  type        = string
+  default     = "e2-micro"
+}

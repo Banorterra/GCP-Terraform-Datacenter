@@ -52,6 +52,9 @@ module "spoke" {
   peered_dns_zones = [local.shared.hub_dns_zone, local.shared.onprem_dns_zone]
   onprem_cidrs     = [local.shared.cidr_plan.onprem.block]
 
+  enable_gate_vm   = var.enable_gate_vm
+  gate_target_host = "host.${trimsuffix(local.shared.onprem_dns_zone, ".")}"
+
   labels = merge(var.labels, { env = local.env, managed_by = "terraform" })
 }
 
