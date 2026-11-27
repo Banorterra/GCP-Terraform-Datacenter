@@ -9,9 +9,9 @@ to the spec's stages, GitHub Actions pipeline and acceptance criteria.
 | Stage | State | Open work |
 |---|---|---|
 | 0-bootstrap | Applied (by hand, once) | Secure tags for the firewall need `roles/resourcemanager.tagAdmin` for a stage account (team decision) |
-| 1-org | Applied by the pipeline | #20: read-only access for people, VPC-SC Policy Denied logs in the central bucket |
-| 2-security | Applied by the pipeline | VPC-SC perimeter in dry-run; review its violations before enforcing (ADR 0006) |
-| 3-networks | In review: hub in #16 (`envs/shared`), spokes in #19 (`envs/{dev,qa,prod}`, draft), CIDR policy in #21 | Billing for `c-onprem-sim`, `qa-net-host` and `prod-net-host`; then apply the hub, the spokes and run the Sprint 4 gate |
+| 1-org | Applied by the pipeline (#20: read-only access for people, VPC-SC Policy Denied logs) | #23: networking APIs in `net-hub` and VM permission for the networks account |
+| 2-security | Applied by the pipeline | VPC-SC perimeter in dry-run; review its violations before enforcing (ADR 0006). #24: the networks plan account reads the VPN key |
+| 3-networks | In review: hub and simulated on-prem in #16 (`envs/shared`, needs #23 and #24 first), spokes in #19 (`envs/{dev,qa,prod}`, draft), CIDR policy in #21 | Billing for `qa-net-host` and `prod-net-host`; then apply the hub, the spokes and run the Sprint 4 gate |
 | 4-projects | Scaffolding | Starts after the Sprint 4 gate |
 | 5-workloads | Scaffolding | Starts after the Sprint 4 gate |
 
@@ -44,7 +44,7 @@ docs/adr/               architecture decision records
 | 0-bootstrap | 0-bootstrap | Same CFT bootstrap module. GitHub Actions + Workload Identity instead of Cloud Build + Cloud Source Repositories; stage accounts are org, security, networks, projects, workloads; state access limited per stage prefix |
 | 1-org | 1-org | `common` holds the hub; `qa` instead of `nonproduction`; add allowed-regions policy and a locked-retention log bucket |
 | 2-security | parts of 1-org and 2-environments (KMS, secrets), VPC-SC from 3-networks | Grouped into one stage |
-| 3-networks | 3-networks-hub-and-spoke | NCC hub in STAR topology (no spoke-to-spoke), HA VPN first, simulated on-prem in the sandbox, deny-all firewall, 50 % flow logs. ADR 0002 |
+| 3-networks | 3-networks-hub-and-spoke | NCC hub in STAR topology (no spoke-to-spoke), HA VPN first, simulated on-prem as a second VPC in `net-hub`, deny-all firewall, 50 % flow logs. ADR 0002 |
 | 4-projects | 4-projects | One service project per application per environment |
 | 5-workloads | 5-app-infra (a single sample VM) | Mostly new code |
 
@@ -82,7 +82,8 @@ docs/adr/               architecture decision records
 - Sandbox values: free-trial billing accounts link only 3 projects each (ADR 0007), audit logs are kept 1 day
   (locked), folders and projects can be destroyed. A real organization changes these (see each stage's README).
 - The CIDR plan in `3-networks/envs/shared` and `policies/network.rego` is a sandbox plan, not the client's signed one.
-- Not yet proven against GCP: on-prem routes reaching the environment spokes through the NCC hub (ADR 0002).
+- Not yet proven against GCP: on-prem routes reaching the environment spokes through the NCC hub. The HA VPN tunnels
+  are a hybrid spoke in the hub's center group, and the hub router advertises the spoke blocks to on-prem (ADR 0002).
 - GitHub Actions are pinned by major tag, not commit SHA. Policy tests: `conftest verify --policy policies`.
 
 ## Schedule note
