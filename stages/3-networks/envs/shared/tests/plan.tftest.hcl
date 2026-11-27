@@ -108,6 +108,11 @@ run "ha_vpn_topology" {
   }
 
   assert {
+    condition     = google_compute_subnetwork.onprem_primary.ip_cidr_range == "172.16.1.0/24" && google_compute_subnetwork.hub_primary.ip_cidr_range == "10.0.0.0/24"
+    error_message = "Subnets must follow the diagram's IP plan (hub 10.0.0.0/22, on-prem 172.16.0.0/16)."
+  }
+
+  assert {
     condition = alltrue([
       for r in ["10.10.0.0/16", "10.20.0.0/16", "10.30.0.0/16", "35.199.192.0/19"] :
       contains([for a in google_compute_router.hub.bgp[0].advertised_ip_ranges : a.range], r)

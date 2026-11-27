@@ -70,3 +70,8 @@ output "onprem_dns_zone" {
   description = "On-prem DNS domain (with trailing dot). Forwarded from the hub."
   value       = var.onprem_dns_zone
 }
+
+output "ncc_edge_group" {
+  description = "NCC group the environment spokes (dev, qa, prod) join: in STAR they only see the center (hub VPC and VPN)."
+  value       = "${google_network_connectivity_hub.main.id}/groups/edge"
+}
