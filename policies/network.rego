@@ -5,9 +5,9 @@ import rego.v1
 # Spec: GCP ranges must not overlap the on-premises network (stage 3 README, "Checks to add").
 # Rejects any subnet (primary or secondary range) that intersects an on-prem range.
 #
-# onprem_cidrs is the SANDBOX plan (cidr_plan.onprem.block in 3-networks/shared). Replace it with the client's
+# onprem_cidrs is the plan of the team's diagrams (cidr_plan.onprem.block in 3-networks/shared, 172.16.0.0/16). Replace it with the client's
 # signed IP plan when it exists, and keep both in sync.
-onprem_cidrs := {"10.200.0.0/16"}
+onprem_cidrs := {"172.16.0.0/16"}
 
 # The simulated datacenter (3-networks/envs/shared) lives inside the on-prem range on purpose. It is a second VPC
 # inside net-hub, not its own project, so it is matched by its subnet name (<prefix>-c-onprem-subnet-<region>),
