@@ -1,5 +1,5 @@
 # Minimal use of modules/network-spoke: the dev network attached to an existing NCC hub. Run from this folder with
-# `terraform init && terraform plan -var host_project_id=... -var hub_project_id=... -var ncc_hub_id=... -var hub_network_id=...`.
+# `terraform init && terraform plan -var host_project_id=... -var ncc_hub_id=... -var hub_network_id=...`.
 
 terraform {
   required_version = ">= 1.9"
@@ -14,11 +14,6 @@ terraform {
 
 variable "host_project_id" {
   description = "Network host project of dev."
-  type        = string
-}
-
-variable "hub_project_id" {
-  description = "Project of the NCC hub."
   type        = string
 }
 
@@ -40,7 +35,6 @@ module "spoke" {
   prefix           = "ex"
   region           = "northamerica-south1"
   subnet_cidr      = "10.10.0.0/24"
-  hub_project_id   = var.hub_project_id
   ncc_hub_id       = var.ncc_hub_id
   hub_network_id   = var.hub_network_id
   dns_zone         = "dev.example.internal."

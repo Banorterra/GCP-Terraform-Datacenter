@@ -3,15 +3,15 @@
 mock_provider "google" {}
 
 variables {
-  project_id     = "bnt-dev-net-host"
-  env            = "dev"
-  prefix         = "bnt"
-  region         = "northamerica-south1"
-  subnet_cidr    = "10.10.0.0/24"
-  hub_project_id = "bnt-c-net-hub"
-  ncc_hub_id     = "projects/bnt-c-net-hub/locations/global/hubs/bnt-c-ncc-hub"
-  hub_network_id = "projects/bnt-c-net-hub/global/networks/bnt-c-hub-vpc"
-  dns_zone       = "dev.gcp.banorterra.internal."
+  project_id      = "bnt-dev-net-host"
+  env             = "dev"
+  prefix          = "bnt"
+  region          = "northamerica-south1"
+  subnet_cidr     = "10.10.0.0/24"
+  ncc_hub_id      = "projects/bnt-c-net-hub/locations/global/hubs/bnt-c-ncc-hub"
+  hub_network_id  = "projects/bnt-c-net-hub/global/networks/bnt-c-hub-vpc"
+  dns_zone        = "dev.gcp.banorterra.internal."
+  ncc_spoke_group = "projects/bnt-c-net-hub/locations/global/hubs/bnt-c-ncc-hub/groups/edge"
   secondary_ranges = {
     pods     = "10.10.64.0/18"
     services = "10.10.128.0/20"
@@ -101,5 +101,14 @@ run "gate_vm_is_private_and_shielded" {
   assert {
     condition     = google_compute_instance.gate[0].shielded_instance_config[0].enable_secure_boot == true
     error_message = "The gate VM must be a Shielded VM."
+  }
+}
+
+run "spoke_in_its_own_project" {
+  command = plan
+
+  assert {
+    condition     = google_network_connectivity_spoke.this.project == "bnt-dev-net-host" && endswith(google_network_connectivity_spoke.this.group, "/groups/edge")
+    error_message = "The NCC spoke is created in the VPC's own project and joins the hub's edge group."
   }
 }

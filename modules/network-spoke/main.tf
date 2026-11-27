@@ -71,9 +71,11 @@ resource "google_compute_router_nat" "this" {
 
 # ---- Network Connectivity Center ----
 
-# The spoke lives in the hub project (like the hub's own spoke in 3-networks/shared) and links this VPC.
+# The spoke lives in this VPC's project and joins the hub in net-hub, as NCC documents for a VPC in another
+# project: it is a proposal that the hub's edge group auto-accepts for the net-host projects (3-networks/shared).
+# Like attaching a VPC from a member account to a Transit Gateway shared with RAM.
 resource "google_network_connectivity_spoke" "this" {
-  project  = var.hub_project_id
+  project  = var.project_id
   name     = "${local.name}-ncc-spoke"
   location = "global"
   hub      = var.ncc_hub_id

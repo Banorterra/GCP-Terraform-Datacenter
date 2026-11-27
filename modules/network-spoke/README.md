@@ -28,7 +28,6 @@ Example: [examples/basic](examples/basic). Tests: `terraform test` from this fol
 | `subnet_cidr` | Primary range of the subnet | required |
 | `secondary_ranges` | Secondary ranges by name | `{}` |
 | `flow_logs_sampling` | Fraction of flow logs sampled | `0.5` |
-| `hub_project_id` | Project of the NCC hub | required |
 | `ncc_hub_id` | ID of the NCC hub | required |
 | `ncc_spoke_group` | NCC group of the spoke (`edge` for a STAR hub) | `null` |
 | `hub_network_id` | Hub VPC, target of the DNS peering | required |

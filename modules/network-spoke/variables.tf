@@ -55,11 +55,6 @@ variable "flow_logs_sampling" {
   }
 }
 
-variable "hub_project_id" {
-  description = "Project of the NCC hub (net-hub). The spoke resource is created there."
-  type        = string
-}
-
 variable "ncc_hub_id" {
   description = "ID of the Network Connectivity Center hub (output ncc_hub_id of 3-networks/shared)."
   type        = string

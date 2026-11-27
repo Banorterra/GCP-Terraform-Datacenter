@@ -60,7 +60,8 @@ cover the perimeter requirements without running appliances.
 
 ### Still open
 - On-prem routes reaching the environment spokes through the VPN hybrid spoke: confirm on the first apply.
-- The environment spokes are created in the hub's project and link a VPC of another project (`<env>-net-host`).
-  NCC documents the other direction (spoke in the VPC's project, accepted by the hub admin); confirm with dev first.
+- Cross-project spokes: each environment spoke is created in its own `<env>-net-host` project (a proposal to the
+  hub, as NCC documents) and the hub's `edge` group auto-accepts proposals only from the three net-host projects.
+  Confirm with dev on the first apply.
 - Hierarchical firewall policies and secure tags (spec: allow by secure tag). Today the rules are VPC firewall rules
   with network tags. Secure tags need `roles/resourcemanager.tagAdmin` for a stage account, a stage 0 change.
