@@ -9,8 +9,10 @@ import rego.v1
 # signed IP plan when it exists, and keep both in sync.
 onprem_cidrs := {"10.200.0.0/16"}
 
-# The simulated datacenter (3-networks/shared, project *-onprem-sim) lives inside the on-prem range on purpose.
-exempt(after) if contains(object.get(after, "project", ""), "onprem-sim")
+# The simulated datacenter (3-networks/envs/shared) lives inside the on-prem range on purpose. It is a second VPC
+# inside net-hub, not its own project, so it is matched by its subnet name (<prefix>-c-onprem-subnet-<region>),
+# which is known at plan time (the network ID is not, for a new VPC).
+exempt(after) if contains(object.get(after, "name", ""), "-onprem-subnet-")
 
 subnet_ranges(after) := ranges if {
 	primary := {after.ip_cidr_range | is_string(after.ip_cidr_range)}
