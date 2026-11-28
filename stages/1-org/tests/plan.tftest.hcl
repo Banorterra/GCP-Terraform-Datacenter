@@ -56,8 +56,8 @@ run "folders_and_projects" {
   }
 
   assert {
-    condition     = length(module.common_projects) == 4
-    error_message = "Common folder must have four projects: net-hub, logging, security, backup."
+    condition     = toset(keys(module.common_projects)) == toset(["net-hub", "logging", "security"])
+    error_message = "Common folder projects: net-hub, security and logging (until it is retired). No backup project (ADR 0008)."
   }
 
   assert {
@@ -124,7 +124,7 @@ run "budgets" {
   }
 
   assert {
-    condition     = length(google_monitoring_notification_channel.email) == 1
+    condition     = length(google_monitoring_notification_channel.email_security) == 1
     error_message = "Each alert email must get a notification channel."
   }
 }
@@ -138,7 +138,6 @@ run "multiple_billing_accounts" {
     }
     project_billing = {
       "c-logging"   = "jesus"
-      "c-backup"    = "none"
       "qa-net-host" = "none"
     }
   }
@@ -149,7 +148,7 @@ run "multiple_billing_accounts" {
   }
 
   assert {
-    condition     = local.project_billing_account["c-backup"] == "" && local.project_billing_account["c-net-hub"] == "ABCDEF-123456-7890AB"
+    condition     = local.project_billing_account["qa-net-host"] == "" && local.project_billing_account["c-net-hub"] == "ABCDEF-123456-7890AB"
     error_message = "\"none\" must leave the project without billing; unlisted projects use the main account."
   }
 
@@ -159,7 +158,7 @@ run "multiple_billing_accounts" {
   }
 
   assert {
-    condition     = length(google_billing_budget.project) == 5 && !contains(keys(google_billing_budget.project), "c-backup")
+    condition     = length(google_billing_budget.project) == 5 && !contains(keys(google_billing_budget.project), "qa-net-host")
     error_message = "Only projects with billing get a project budget."
   }
 
@@ -178,12 +177,22 @@ run "sinks_and_notifications" {
   }
 
   assert {
-    condition     = google_storage_bucket.audit_logs.retention_policy[0].retention_period >= 24 * 3600
+    condition     = google_storage_bucket.audit.project == "dc-c-security" && google_logging_organization_sink.audit.destination == "storage.googleapis.com/${google_storage_bucket.audit.name}"
+    error_message = "The audit sink writes to the bucket in the security project (ADR 0008)."
+  }
+
+  assert {
+    condition     = module.common_projects["security"].project_name == "dc-c-security-logs-backup"
+    error_message = "The security project shows as <prefix>-c-security-logs-backup; its ID does not change."
+  }
+
+  assert {
+    condition     = google_storage_bucket.audit.retention_policy[0].retention_period >= 24 * 3600
     error_message = "Audit bucket must retain at least 1 day."
   }
 
   assert {
-    condition     = google_storage_bucket.audit_logs.retention_policy[0].is_locked == true
+    condition     = google_storage_bucket.audit.retention_policy[0].is_locked == true
     error_message = "Audit bucket retention must be locked by default (spec: locked retention)."
   }
 
