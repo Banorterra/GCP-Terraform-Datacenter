@@ -6,7 +6,7 @@ output "folder_ids" {
 }
 
 output "common_project_ids" {
-  description = "Project ID per common-folder project (net-hub, logging, security, backup)."
+  description = "Project ID per common-folder project (net-hub, security; logging until it is retired, ADR 0008)."
   value       = { for k, p in module.common_projects : k => p.project_id }
 }
 
@@ -27,7 +27,7 @@ output "net_host_project_numbers" {
 
 output "audit_log_bucket" {
   description = "GCS bucket that receives the organization-level audit log sink."
-  value       = google_storage_bucket.audit_logs.name
+  value       = google_storage_bucket.audit.name
 }
 
 output "audit_log_sink_writer" {

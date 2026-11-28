@@ -19,6 +19,10 @@ locals {
   # Projects inside the common folder. Each one gets a short name used in the project ID
   # (<prefix>-c-<domain>). The project ID limit is 30 chars; prefix is 2-3 chars.
   # extra_apis: APIs on top of the minimal set in projects.tf, for the stage that fills the project.
+  #
+  # Free-trial billing accounts link only 3 projects (ADR 0007), so the sandbox keeps the security, audit
+  # logs and backup (DR) workloads in one project, security (ADR 0008). The logging project only stays
+  # until its locked audit bucket can be deleted (the sink already writes to the security project).
   common_projects = {
     # Stage 3 fills net-hub: the hub VPC, the simulated on-prem VPC with its VM (a second VPC here, not its
     # own project, to save a billing slot), the HA VPN between them, Cloud DNS and the NCC hub.
@@ -32,13 +36,17 @@ locals {
         "servicenetworking.googleapis.com",
       ]
     }
-    logging = { app = "logging", description = "Org-level audit sink bucket and log views.", extra_apis = [] }
+    logging = { app = "logging", description = "Old audit bucket, being retired (ADR 0008).", extra_apis = [] }
     security = {
       app         = "security"
-      description = "KMS, Secret Manager, SCC notifications (stage 2 fills it)."
+      description = "KMS, Secret Manager (stage 2), the org audit log bucket and the backup/DR vaults (stage 5)."
       extra_apis  = ["cloudkms.googleapis.com", "secretmanager.googleapis.com"]
     }
-    backup = { app = "backup", description = "Backup and DR vaults (stage 5 fills it).", extra_apis = [] }
+  }
+
+  # Name shown in the console when it differs from the project ID (<prefix>-c-<key>, which never changes).
+  common_project_display_names = {
+    security = "${var.project_prefix}-c-security-logs-backup"
   }
 
   base_labels = merge(var.labels, {
