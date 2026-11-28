@@ -34,13 +34,13 @@ extra_billing_accounts = {
 }
 
 # main (Adrián's account) already pays for seed, cicd and c-net-hub: it has no free slot left.
-# qa and prod network hosts stay without billing until Hervey's account is added; backup is not used
-# until DR.
+# qa and prod network hosts stay without billing until Hervey's account is added. There is no backup
+# project: backups go to c-security, and c-logging is retired once its audit bucket can be deleted, which
+# frees one slot (ADR 0008).
 project_billing = {
   "c-logging"     = "jesus"
   "c-security"    = "jesus"
   "dev-net-host"  = "jesus"
-  "c-backup"      = "none"
   "qa-net-host"   = "none"
   "prod-net-host" = "none"
 }

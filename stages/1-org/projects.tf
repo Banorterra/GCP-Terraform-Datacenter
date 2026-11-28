@@ -1,7 +1,8 @@
 # Common-folder projects and per-environment network host projects.
 # Uses the same project-factory module stage 0 uses for the CICD project (~> 18.0).
-# `name` becomes the project ID; we keep random_project_id = false here because the IDs must be
-# predictable (stage 2-5 reference them by ID). If a sandbox collides on a project ID, change
+# The project ID is <prefix>-c-<key>; `name` is only the display name (local.common_project_display_names,
+# or the ID). We keep random_project_id = false here because the IDs must be predictable (stage 2-5 reference
+# them by ID). Changing a display name updates the project in place. If a sandbox collides on a project ID, change
 # var.project_prefix in terraform.tfvars.
 
 module "common_projects" {
@@ -10,7 +11,8 @@ module "common_projects" {
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
 
-  name              = "${var.project_prefix}-c-${each.key}"
+  name              = lookup(local.common_project_display_names, each.key, "${var.project_prefix}-c-${each.key}")
+  project_id        = "${var.project_prefix}-c-${each.key}"
   random_project_id = false
   org_id            = var.org_id
   folder_id         = google_folder.env["common"].id

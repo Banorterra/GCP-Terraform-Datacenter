@@ -24,10 +24,13 @@ locals {
 
 # One email notification channel per address. count (not for_each) because the list is sensitive;
 # only its length is revealed.
-resource "google_monitoring_notification_channel" "email" {
+# New name on purpose (ADR 0008): the channels move from c-logging to c-security. As a new resource,
+# Terraform creates these first, switches the budgets to them and only then deletes the old
+# "email" channels. A replacement in place would delete the old ones first.
+resource "google_monitoring_notification_channel" "email_security" {
   count = nonsensitive(length(var.alert_emails))
 
-  project      = module.common_projects["logging"].project_id
+  project      = module.common_projects["security"].project_id
   display_name = "${var.project_prefix}-alerts-${count.index}"
   type         = "email"
 
@@ -67,7 +70,7 @@ resource "google_billing_budget" "total" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = google_monitoring_notification_channel.email[*].id
+    monitoring_notification_channels = google_monitoring_notification_channel.email_security[*].id
     disable_default_iam_recipients   = false
   }
 }
@@ -99,7 +102,7 @@ resource "google_billing_budget" "project" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = google_monitoring_notification_channel.email[*].id
+    monitoring_notification_channels = google_monitoring_notification_channel.email_security[*].id
     disable_default_iam_recipients   = false
   }
 }

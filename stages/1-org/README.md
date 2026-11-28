@@ -3,8 +3,9 @@
 Referencia: `terraform-example-foundation/1-org`. Corre desde el pipeline como `sa-terraform-org`,
 prefijo de state `1-org` en el bucket de la etapa 0. No lee el estado de la etapa 0: todo llega por variables.
 
-Crea los folders `common`, `dev`, `qa` y `prod`; los proyectos `net-hub`, `logging`, `security` y `backup`
-en `common`; un proyecto de red spoke (`<prefijo>-<env>-net-host`) por entorno; las políticas de
+Crea los folders `common`, `dev`, `qa` y `prod`; los proyectos `net-hub` y `security` (nombre visible
+`bnt-c-security-logs-backup`: llaves, secrets, bucket de auditoría y respaldos, ADR 0008) en `common`, más
+`logging` mientras se retira; un proyecto de red spoke (`<prefijo>-<env>-net-host`) por entorno; las políticas de
 organización; el sink de auditoría; las notificaciones de SCC y los presupuestos.
 
 ## Decisiones
@@ -19,7 +20,7 @@ organización; el sink de auditoría; las notificaciones de SCC y los presupuest
 | Regiones permitidas | `in:northamerica-south1-locations` + `in:us-south1-locations` | ADR 0005: Querétaro primaria, Dallas DR |
 | Políticas de organización | Sin llaves de SA, sin IPs externas en VMs, Shielded VM, OS Login, sin red default, buckets uniformes y sin acceso público, Cloud SQL sin IP pública, IAM solo para principales de la organización | Lo que pide el reto más el endurecimiento del example foundation |
 | IAM solo para la organización | `iam.allowedPolicyMemberDomains` con el customer ID de Cloud Identity y el principal set de la organización | El principal set deja pasar cuentas de servicio, service agents (por ejemplo el de SCC) y el pool de GitHub |
-| Retención de auditoría | **Bloqueada**, 1 día en el sandbox | El reto pide retención bloqueada. Con 1 día el bloqueo es real pero se puede destruir al terminar. Al bloquear, GCS pone un *lien* en el proyecto de logging hasta que el bucket se borra |
+| Retención de auditoría | **Bloqueada**, 1 día en el sandbox | El reto pide retención bloqueada. Con 1 día el bloqueo es real pero se puede destruir al terminar. Al bloquear, GCS pone un *lien* en el proyecto del bucket hasta que el bucket se borra. El bucket vive en `security` (ADR 0008) |
 | Borrado | `folder_deletion_protection = false`, `project_deletion_policy = "DELETE"` | Sandbox con crédito limitado: tiene que funcionar `terraform destroy` |
 | Cuentas de facturación | La principal (`TF_VAR_billing_account`) más las de `extra_billing_accounts`; `project_billing` dice cuál paga cada proyecto o `"none"` | Una cuenta de prueba solo liga 3 proyectos (ADR 0007) |
 | Presupuestos | Uno por cuenta de facturación (su crédito, en su moneda) + uno por proyecto con billing, con `EXCLUDE_ALL_CREDITS` | Con `INCLUDE_ALL_CREDITS` el crédito de prueba deja el costo en 0 y nunca hay alertas |
