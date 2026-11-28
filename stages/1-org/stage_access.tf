@@ -36,3 +36,17 @@ resource "google_project_iam_member" "stage_access" {
   role    = each.value.role
   member  = "serviceAccount:${local.pipeline_sa[each.value.stage]}"
 }
+
+# Stage 3 (sa-terraform-networks) creates two test VMs: the simulated on-prem host in net-hub and the Sprint 4
+# gate VM in prod-net-host. compute.networkAdmin (stage 0, organization level) can't create instances, so the
+# instance role is granted only on these two projects instead of on the whole organization.
+resource "google_project_iam_member" "networks_instance_admin" {
+  for_each = {
+    net-hub       = module.common_projects["net-hub"].project_id
+    prod-net-host = module.net_host_projects["prod"].project_id
+  }
+
+  project = each.value
+  role    = "roles/compute.instanceAdmin.v1"
+  member  = "serviceAccount:${local.pipeline_sa["networks"]}"
+}

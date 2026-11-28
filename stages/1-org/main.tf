@@ -24,7 +24,18 @@ locals {
   # logs and backup (DR) workloads in one project, security (ADR 0008). The logging project only stays
   # until its locked audit bucket can be deleted (the sink already writes to the security project).
   common_projects = {
-    net-hub = { app = "net-hub", description = "Shared VPC hub, HA VPN to on-prem, DNS.", extra_apis = [] }
+    # Stage 3 fills net-hub: the hub VPC, the simulated on-prem VPC with its VM (a second VPC here, not its
+    # own project, to save a billing slot), the HA VPN between them, Cloud DNS and the NCC hub.
+    net-hub = {
+      app         = "net-hub"
+      description = "Hub VPC, simulated on-prem VPC, HA VPN, DNS and NCC (stage 3 fills it)."
+      extra_apis = [
+        "compute.googleapis.com",
+        "dns.googleapis.com",
+        "networkconnectivity.googleapis.com",
+        "servicenetworking.googleapis.com",
+      ]
+    }
     logging = { app = "logging", description = "Old audit bucket, being retired (ADR 0008).", extra_apis = [] }
     security = {
       app         = "security"

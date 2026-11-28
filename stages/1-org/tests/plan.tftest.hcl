@@ -217,4 +217,16 @@ run "stage_access" {
     condition     = length(google_project_iam_member.stage_access) == 2
     error_message = "Stage 1 must grant later stages only the roles listed in stage_access.tf."
   }
+
+  assert {
+    condition = (
+      keys(google_project_iam_member.networks_instance_admin) == ["net-hub", "prod-net-host"] &&
+      alltrue([
+        for b in values(google_project_iam_member.networks_instance_admin) :
+        b.role == "roles/compute.instanceAdmin.v1" &&
+        b.member == "serviceAccount:sa-terraform-networks@dc-b-seed-0000.iam.gserviceaccount.com"
+      ])
+    )
+    error_message = "The stage 3 SA must get instanceAdmin.v1 only on net-hub and prod-net-host."
+  }
 }
