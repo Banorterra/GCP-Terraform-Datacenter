@@ -13,5 +13,6 @@ Copy `0000-template.md`, number it, and add it to the index.
 | [0006](0006-security-stage.md) | Software KMS keys, write-only generated secrets, VPC-SC in dry-run | Proposed |
 | [0007](0007-multiple-billing-accounts.md) | Spread projects over the team's free-trial billing accounts | Proposed |
 | [0008](0008-security-logs-backup-project.md) | Security, audit logs and backups in one common project | Proposed |
+| [0009](0009-app-project-module.md) | Own module for application projects, with a random ID suffix | Proposed |
 
 Statuses: Proposed (needs a sign-off) / Accepted / Superseded by NNNN.

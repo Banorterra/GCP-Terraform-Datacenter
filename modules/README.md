@@ -9,7 +9,7 @@ before pinning, and record the choice in an ADR.
 
 | Spec module | Starting point |
 |---|---|
-| `project-factory` | terraform-google-modules/project-factory (stage 0 already pins `~> 18.0`) |
+| `project-factory` | terraform-google-modules/project-factory (stages 0 and 1 pin `~> 18.0`). Application projects: **Hecho** (`modules/app-project`, propio: proyecto + Shared VPC + permisos para la etapa 5; usado por la etapa 4, ADR 0009) |
 | `network-hub`, `network-spoke`, `firewall` | Example foundation `3-networks-hub-and-spoke` code + terraform-google-modules/network |
 | `hybrid-connectivity` | terraform-google-modules/vpn (HA VPN), cloud-router |
 | `gke` | terraform-google-modules/kubernetes-engine (private cluster submodule) |
