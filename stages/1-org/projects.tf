@@ -57,6 +57,8 @@ module "net_host_projects" {
     "compute.googleapis.com",
     "dns.googleapis.com",                 # 3-networks/envs/<env>: private zone and peering zones to the hub
     "networkconnectivity.googleapis.com", # 3-networks/envs/<env>: the NCC spoke lives in this project
+    "container.googleapis.com",           # 4-projects: GKE in a Shared VPC needs the API on the host project too
+    "servicenetworking.googleapis.com",   # private services access (Cloud SQL, Filestore, Memorystore private IP)
   ])
 
   # No per-project service account: nothing uses it and the spec doesn't ask for one.
