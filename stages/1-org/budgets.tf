@@ -34,6 +34,12 @@ resource "google_monitoring_notification_channel" "email" {
   labels = {
     email_address = var.alert_emails[count.index]
   }
+
+  # Moving the channels to another project replaces them. Create the new ones first so the
+  # budgets switch over before the old channels are deleted (ADR 0008).
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 moved {
