@@ -24,23 +24,18 @@ locals {
 
 # One email notification channel per address. count (not for_each) because the list is sensitive;
 # only its length is revealed.
-resource "google_monitoring_notification_channel" "email" {
+# New name on purpose (ADR 0008): the channels move from c-logging to c-security. As a new resource,
+# Terraform creates these first, switches the budgets to them and only then deletes the old
+# "email" channels. A replacement in place would delete the old ones first.
+resource "google_monitoring_notification_channel" "email_security" {
   count = nonsensitive(length(var.alert_emails))
 
-  # The project ID as a string, not the module output: create_before_destroy spreads to everything
-  # a resource depends on, and through the module output it causes a cycle with the destroy of c-backup.
-  project      = "${var.project_prefix}-c-security"
+  project      = module.common_projects["security"].project_id
   display_name = "${var.project_prefix}-alerts-${count.index}"
   type         = "email"
 
   labels = {
     email_address = var.alert_emails[count.index]
-  }
-
-  # Moving the channels to another project replaces them. Create the new ones first so the
-  # budgets switch over before the old channels are deleted (ADR 0008).
-  lifecycle {
-    create_before_destroy = true
   }
 }
 
@@ -75,7 +70,7 @@ resource "google_billing_budget" "total" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = google_monitoring_notification_channel.email[*].id
+    monitoring_notification_channels = google_monitoring_notification_channel.email_security[*].id
     disable_default_iam_recipients   = false
   }
 }
@@ -107,7 +102,7 @@ resource "google_billing_budget" "project" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = google_monitoring_notification_channel.email[*].id
+    monitoring_notification_channels = google_monitoring_notification_channel.email_security[*].id
     disable_default_iam_recipients   = false
   }
 }

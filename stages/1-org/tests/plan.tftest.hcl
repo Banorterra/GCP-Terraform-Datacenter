@@ -124,7 +124,7 @@ run "budgets" {
   }
 
   assert {
-    condition     = length(google_monitoring_notification_channel.email) == 1
+    condition     = length(google_monitoring_notification_channel.email_security) == 1
     error_message = "Each alert email must get a notification channel."
   }
 }
