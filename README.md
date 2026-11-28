@@ -12,7 +12,7 @@ to the spec's stages, GitHub Actions pipeline and acceptance criteria.
 | 1-org | Applied by the pipeline (#20: read-only access for people, VPC-SC Policy Denied logs) | #23: networking APIs in `net-hub` and VM permission for the networks account |
 | 2-security | Applied by the pipeline | VPC-SC perimeter in dry-run; review its violations before enforcing (ADR 0006). #24: the networks plan account reads the VPN key |
 | 3-networks | In review: hub and simulated on-prem in #16 (`envs/shared`, needs #23 and #24 first), spokes in #19 (`envs/{dev,qa,prod}`, draft), CIDR policy in #21 | Billing for `qa-net-host` and `prod-net-host`; then apply the hub, the spokes and run the Sprint 4 gate |
-| 4-projects | Scaffolding | Starts after the Sprint 4 gate |
+| 4-projects | Draft (`envs/{dev,qa,prod}`, `modules/app-project`) | Apply stage 3 and the billing of each environment first |
 | 5-workloads | Scaffolding | Starts after the Sprint 4 gate |
 
 The pipeline is in use: PRs plan every touched root with read-only accounts (new roots against an empty state), and a
@@ -21,7 +21,7 @@ merge to `main` applies stage by stage in series, each root after its environmen
 ## Layout
 
 ```
-modules/                reusable modules (see modules/README.md): kms; network-spoke (in #19)
+modules/                reusable modules (see modules/README.md): kms; network-spoke (in #19); app-project
 stages/_shared/         boilerplate copied into every root by scripts/sync-boilerplate.sh
 stages/0-bootstrap/     seed + CI/CD projects, state bucket, stage service accounts, Workload Identity (manual, once)
 stages/1-org/           folders, org policies, logging, SCC, budgets
