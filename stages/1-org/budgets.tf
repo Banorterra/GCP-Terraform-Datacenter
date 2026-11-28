@@ -27,7 +27,9 @@ locals {
 resource "google_monitoring_notification_channel" "email" {
   count = nonsensitive(length(var.alert_emails))
 
-  project      = module.common_projects["security"].project_id
+  # The project ID as a string, not the module output: create_before_destroy spreads to everything
+  # a resource depends on, and through the module output it causes a cycle with the destroy of c-backup.
+  project      = "${var.project_prefix}-c-security"
   display_name = "${var.project_prefix}-alerts-${count.index}"
   type         = "email"
 
