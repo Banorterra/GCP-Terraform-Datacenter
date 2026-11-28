@@ -27,7 +27,7 @@ locals {
 resource "google_monitoring_notification_channel" "email" {
   count = nonsensitive(length(var.alert_emails))
 
-  project      = module.common_projects["logging"].project_id
+  project      = module.common_projects["security"].project_id
   display_name = "${var.project_prefix}-alerts-${count.index}"
   type         = "email"
 

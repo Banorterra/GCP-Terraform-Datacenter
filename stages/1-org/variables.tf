@@ -112,7 +112,7 @@ variable "extra_billing_accounts" {
 variable "project_billing" {
   description = <<-EOT
     Which billing account each project of this stage uses, by project key (c-net-hub, c-logging,
-    c-security, c-backup, dev-net-host, qa-net-host, prod-net-host). Value: "main", an alias from
+    c-security, dev-net-host, qa-net-host, prod-net-host). Value: "main", an alias from
     var.extra_billing_accounts, or "none" for a project without billing (it can only use free APIs).
     Projects not listed use "main".
   EOT
