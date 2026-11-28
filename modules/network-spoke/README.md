@@ -11,7 +11,9 @@ The network of one environment (dev, qa or prod) in the hub-and-spoke landing zo
 - **DNS**: a private zone for the environment, plus peering zones to the hub VPC for the names it resolves
   (`gcp.banorterra.internal.` and the on-prem domain it forwards over the HA VPN);
 - **firewall**: allow inside the subnet, IAP SSH to VMs tagged `ssh`, ICMP/80/443 from on-prem to VMs tagged
-  `allow-onprem`, and an explicit deny-all.
+  `allow-onprem`, load balancer health checks (`35.191.0.0/16`, `130.211.0.0/22`, for stage 5), and an explicit deny-all.
+- **private services access** (`psa_cidr`): a reserved range and the peering to Google's services VPC, so Cloud SQL,
+  Filestore and Memorystore get private IPs (stages 4 and 5; public IP is blocked by org policy).
 
 AWS analogy: a VPC shared with RAM to the workload accounts, attached to a Transit Gateway, with a NAT gateway.
 

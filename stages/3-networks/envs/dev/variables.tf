@@ -18,6 +18,12 @@ variable "secondary_ranges" {
   default     = {}
 }
 
+variable "psa_cidr" {
+  description = "Range for private services access (Cloud SQL, Filestore, Memorystore; stages 4 and 5). Inside cidr_plan.<env>.block, clear of the subnet and the secondary ranges. null = none."
+  type        = string
+  default     = null
+}
+
 variable "flow_logs_sampling" {
   description = "Fraction of VPC flow logs sampled (spec: 50%)."
   type        = number

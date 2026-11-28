@@ -47,3 +47,8 @@ output "gate_vm_name" {
   description = "Name of the Sprint 4 gate VM (null when enable_gate_vm is false)."
   value       = one(google_compute_instance.gate[*].name)
 }
+
+output "psa_range_name" {
+  description = "Name of the private services access range (null without psa_cidr). Stage 5 passes it as allocated_ip_range to Cloud SQL."
+  value       = var.psa_cidr == null ? null : google_compute_global_address.psa[0].name
+}

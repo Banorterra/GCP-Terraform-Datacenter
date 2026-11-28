@@ -46,6 +46,33 @@ resource "google_compute_shared_vpc_host_project" "this" {
   project = var.project_id
 }
 
+# ---- Private services access (needed by stages 4 and 5) ----
+# Cloud SQL, Filestore and Memorystore run in a Google-managed VPC that is peered to this one. Google takes their
+# private IPs from this reserved range. Without it stage 5 cannot create Cloud SQL: public IP is blocked by the org
+# policy sql.restrictPublicIp (stage 1). The app projects of stage 4 use it through the Shared VPC.
+# AWS analogy: the subnet group of RDS, except that the database lives in Google's VPC, not in a subnet of ours.
+
+resource "google_compute_global_address" "psa" {
+  count = var.psa_cidr == null ? 0 : 1
+
+  project       = var.project_id
+  name          = "${local.name}-psa-range"
+  network       = google_compute_network.this.id
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  address       = split("/", var.psa_cidr)[0]
+  prefix_length = tonumber(split("/", var.psa_cidr)[1])
+  description   = "Private services access range of ${var.env} (Cloud SQL, Filestore, Memorystore)."
+}
+
+resource "google_service_networking_connection" "psa" {
+  count = var.psa_cidr == null ? 0 : 1
+
+  network                 = google_compute_network.this.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.psa[0].name]
+}
+
 # ---- Outbound Internet (VMs have no external IPs: org policy) ----
 
 resource "google_compute_router" "nat" {
@@ -178,6 +205,22 @@ resource "google_compute_firewall" "allow_from_onprem" {
     protocol = "tcp"
     ports    = ["80", "443"]
   }
+}
+
+# Load balancer health checks (needed by stages 4 and 5). The load balancer of stage 5 checks the MIG VMs and the
+# GKE nodes from these Google ranges, and the external load balancer's proxies connect from them too. Without this
+# rule deny_all drops them: every backend looks down, users get 502 and the MIG autohealing keeps recreating VMs.
+# AWS analogy: the security group rule that lets the ALB reach the instances for its health checks.
+resource "google_compute_firewall" "allow_health_checks" {
+  project   = var.project_id
+  network   = google_compute_network.this.name
+  name      = "${local.name}-allow-health-checks"
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_ranges = var.health_check_ranges
+
+  allow { protocol = "tcp" }
 }
 
 resource "google_compute_firewall" "deny_all" {

@@ -39,3 +39,8 @@ output "gate_vm_name" {
   description = "Name of the Sprint 4 gate VM (null when enable_gate_vm is false)."
   value       = module.spoke.gate_vm_name
 }
+
+output "psa_range_name" {
+  description = "Private services access range of this environment (stage 5: allocated_ip_range of Cloud SQL)."
+  value       = module.spoke.psa_range_name
+}

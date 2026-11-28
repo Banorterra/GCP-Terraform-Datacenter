@@ -14,3 +14,6 @@ secondary_ranges = {
   pods     = "10.10.64.0/18"
   services = "10.10.128.0/20"
 }
+
+# Private services access for Cloud SQL, Filestore and Memorystore (stages 4 and 5): after the services range.
+psa_cidr = "10.10.160.0/20"

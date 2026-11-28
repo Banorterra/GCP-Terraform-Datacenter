@@ -107,6 +107,23 @@ variable "iap_source_range" {
   default     = "35.235.240.0/20"
 }
 
+variable "psa_cidr" {
+  description = "Range reserved for private services access (Cloud SQL, Filestore, Memorystore with private IP, used by stages 4 and 5). Must sit inside the environment block and clear of the subnet and secondary ranges. null = no private services access."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.psa_cidr == null || can(cidrhost(var.psa_cidr, 0))
+    error_message = "psa_cidr must be a CIDR range such as 10.20.160.0/20."
+  }
+}
+
+variable "health_check_ranges" {
+  description = "Google-fixed ranges of load balancer health checks and proxies, allowed in to every VM and GKE node (stage 5 load balancers)."
+  type        = list(string)
+  default     = ["35.191.0.0/16", "130.211.0.0/22"]
+}
+
 variable "labels" {
   description = "Labels for the resources that support them (DNS zones, NCC spoke)."
   type        = map(string)

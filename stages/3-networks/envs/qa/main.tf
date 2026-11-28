@@ -42,6 +42,7 @@ module "spoke" {
   subnet_cidr        = local.cidr.subnet_cidr
   secondary_ranges   = var.secondary_ranges
   flow_logs_sampling = var.flow_logs_sampling
+  psa_cidr           = var.psa_cidr
 
   ncc_hub_id      = local.shared.ncc_hub_id
   ncc_spoke_group = coalesce(var.ncc_spoke_group, local.shared.ncc_edge_group)

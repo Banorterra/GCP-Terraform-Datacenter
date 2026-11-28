@@ -112,3 +112,49 @@ run "spoke_in_its_own_project" {
     error_message = "The NCC spoke is created in the VPC's own project and joins the hub's edge group."
   }
 }
+
+run "private_services_access_for_cloud_sql" {
+  command = plan
+
+  variables {
+    psa_cidr = "10.10.160.0/20"
+  }
+
+  assert {
+    condition     = google_compute_global_address.psa[0].address == "10.10.160.0" && google_compute_global_address.psa[0].prefix_length == 20
+    error_message = "The private services access range must be the one in psa_cidr."
+  }
+
+  assert {
+    condition     = google_compute_global_address.psa[0].purpose == "VPC_PEERING"
+    error_message = "The range must be reserved for VPC peering (private services access)."
+  }
+
+  assert {
+    condition     = length(google_service_networking_connection.psa) == 1
+    error_message = "The service networking connection must be created."
+  }
+}
+
+run "no_private_services_access_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(google_compute_global_address.psa) == 0 && length(google_service_networking_connection.psa) == 0
+    error_message = "Without psa_cidr nothing is reserved."
+  }
+}
+
+run "health_checks_pass_the_firewall" {
+  command = plan
+
+  assert {
+    condition     = toset(google_compute_firewall.allow_health_checks.source_ranges) == toset(["35.191.0.0/16", "130.211.0.0/22"])
+    error_message = "The Google health check ranges must be allowed."
+  }
+
+  assert {
+    condition     = google_compute_firewall.allow_health_checks.priority < google_compute_firewall.deny_all.priority
+    error_message = "The health check rule must win over deny_all."
+  }
+}
